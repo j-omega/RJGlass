@@ -75,31 +75,66 @@ class PFD_Guage(object):
 			
 		def V_Speeds(self, air_spd, text_y):
 			space = 30.0
-			def V_Text(prefix, value, x, y):
-				glPushMatrix()
-				glTranslatef(x, y, 0.0)
-				glPushMatrix()
-				glScalef(0.15,0.15,1.0)
-				s = prefix + str(value)
-				glText(s, 80.0)
-				glPopMatrix()
-				glPopMatrix()
+			def V_Text(Vspeed, x, y):
+				if Vspeed.visible:
+					glPushMatrix()
+					glTranslatef(x, y, 0.0)
+					glPushMatrix()
+					glScalef(0.15,0.15,1.0)
+					s = Vspeed.text + str(Vspeed.value)
+					glText(s, 85.0)
+					glPopMatrix()
+					glPopMatrix()
 			glColor(cyan)
 			#VT
-			V_Text("VT ", air_spd.VT, 5.0, text_y)			
+			V_Text(air_spd.VT, 5.0, text_y)			
 			text_y -= space
 			#V2
-			V_Text("V2 ", air_spd.V2, 5.0, text_y)			
+			V_Text(air_spd.V2, 5.0, text_y)			
 			text_y -= space
 			#VR
-			V_Text("VR ", air_spd.VR, 5.0, text_y)			
+			V_Text(air_spd.VR, 5.0, text_y)			
 			text_y -= space
 			#V1
-			V_Text("V1 ", air_spd.V1, 5.0, text_y)
+			V_Text(air_spd.V1, 5.0, text_y)
+			#Vselected one
+			text_y = -100
+			V_Text(air_spd.Vspeed_input, 5.0,  text_y)
 			#After done reset color to white
 			glColor(white)
 
-		def over_speed(self, air_spd):
+		def Vspeed_selection(self, Vspeed, x , y):
+			s = Vspeed.text
+			#Draw text
+			glColor(cyan)
+			glPushMatrix()
+			glTranslatef(x, y, 0.0)
+			glPushMatrix()
+			glScalef(0.15,0.15,1.0)
+			if Vspeed.visible:
+				s += str(Vspeed.value)
+				glText(s, 85.0)
+			else: #If not visible value is dashes --- 
+				glText(s, 85.0)
+				glTranslatef(-20, 0, 0.0) #Move dashes left a little for apperance
+				glText('---', 110.0)
+				
+			glPopMatrix()
+			glPopMatrix()
+		
+		
+		def speed_cues(self, air_spd):
+			
+			def lowspeedcue(y):
+				x1 = 45
+				x2 = 80
+				glColor(green)
+				glLineWidth(2.0)
+				glBegin(GL_LINES)
+				glVertex2f(x1,y)
+				glVertex2f(x2,y)
+				glEnd()
+				
 			def barber_pole(start, finish, dir):
 				step = 12 #Determine step between
 				x1 = 52
@@ -132,16 +167,20 @@ class PFD_Guage(object):
 			unit_apart = self.knot_unit
 			y_center = self.y_center
 			airspeed = air_spd.IAS_guage
-			diff = air_spd.VNE - airspeed
+			diff = air_spd.maxspeed - airspeed
 			loc = diff * self.knot_unit 
 			if loc <= y_center: 
 				barber_pole(loc + y_center, 150 + y_center, 1)
 			#Begin under_speed
-			diff= air_spd.VS - airspeed
+			diff= air_spd.minspeed - airspeed
 			loc = diff * self.knot_unit
 			if loc >= -y_center:
 				barber_pole(loc + y_center, -150 + y_center, -1)
-		
+			#Begin low speed awareness cue
+			diff = air_spd.lowspeed - airspeed
+			loc = diff * self.knot_unit
+			lowspeedcue(loc + y_center)
+			
 		def tick_marks(self, air_spd, x, y):
 
 
@@ -254,8 +293,13 @@ class PFD_Guage(object):
 	
 		def airspeed_bug(self, airspeed): # Also speed on top
 			glPushMatrix()
+			bug_value = airspeed.bug.value
+			if bug_value <40: #prevents bug from going below 40knot mark.
+				bug_value = 40
+			
+				
 			#Determine bugs position
-			diff = airspeed.bug - airspeed.IAS_guage
+			diff = bug_value - airspeed.IAS_guage
 			#Determine translation amount
 			unit_apart = self.knot_unit
 			center = self.y_center
@@ -270,37 +314,39 @@ class PFD_Guage(object):
 			
 		def Vspeed_bug(self, air_spd): #Puts in the blue marks on speed tape for V-Speeds
 		
-			def mark_bug(IAS, bug, text):
+			def mark_bug(IAS, Vbug):
 				
-				#IAS current airspeed, bug is bug airspeed text is text to put next to mark
-				diff = (IAS - bug) * self.knot_unit
-				center = self.y_center
-				noshow = center + 5.0 #If out of this range then don't show
-				if abs(diff) <= noshow:
-					glPushMatrix()
-					glTranslate(30.0, center - diff, 0.0) #Move to point of V speed bug
-					#Draw Line
-					glBegin(GL_LINES)
-					glVertex(0.0,0.0)
-					glVertex(30.0,0.0)
-					glEnd()
-					#Draw Text next to line 1,2,R,T
-					glTranslate(32.0, -6.0, 0.0)
-					glScalef(0.12,0.12,1.0)
-					glText(text, 90)
-					glPopMatrix()
-					
+				if Vbug.visible:
+					text = " " + Vbug.text[1]
+					#IAS current airspeed, bug is bug airspeed text is text to put next to mark
+					diff = (IAS - Vbug.value) * self.knot_unit
+					center = self.y_center
+					noshow = center + 5.0 #If out of this range then don't show
+					if abs(diff) <= noshow:
+						glPushMatrix()
+						glTranslate(30.0, center - diff, 0.0) #Move to point of V speed bug
+						#Draw Line
+						glBegin(GL_LINES)
+						glVertex(0.0,0.0)
+						glVertex(30.0,0.0)
+						glEnd()
+						#Draw Text next to line 1,2,R,T
+						glTranslate(32.0, -6.0, 0.0)
+						glScalef(0.12,0.12,1.0)
+						glText(text, 90)
+						glPopMatrix()
+						
 			
 			glColor(cyan)
 			glLineWidth(2.0)
-			mark_bug(air_spd.IAS_guage,air_spd.V1," 1")
-			mark_bug(air_spd.IAS_guage,air_spd.V2, " 2")
-			mark_bug(air_spd.IAS_guage,air_spd.VR, "R")
-			mark_bug(air_spd.IAS_guage,air_spd.VT, "T")
+			mark_bug(air_spd.IAS_guage,air_spd.V1)
+			mark_bug(air_spd.IAS_guage,air_spd.V2)
+			mark_bug(air_spd.IAS_guage,air_spd.VR)
+			mark_bug(air_spd.IAS_guage,air_spd.VT)
 				
 			
 			
-		def draw(self, airspeed, x, y):
+		def draw(self, airspeed, onground, x, y):
 		#airspeed is in knots.
 		#CRJ - Airspped Guage
 		# Location 2,88 to 90,368
@@ -309,14 +355,17 @@ class PFD_Guage(object):
 			glTranslatef(x, y, 0.0)
 			
 			self.tick_marks(airspeed, x, y) #Draw tick marks with numbers
-			#self.over_speed(airspeed)
+			if  not (onground): 
+				self.speed_cues(airspeed) #If on ground don't display speed cues
+
 			if airspeed.IAS >40: self.airspeed_diff(airspeed.IAS_diff)
 			self.arrow()
 			self.Vspeed_bug(airspeed)
 			glDisable(GL_SCISSOR_TEST)
 			self.airspeed_bug(airspeed)
-			self.airspeed_bug_text(airspeed.bug)
-			self.airspeed_mach_text(airspeed.mach, 15 , 300)			
+			self.airspeed_bug_text(airspeed.bug.value)
+			if airspeed.Mach.active: self.airspeed_mach_text(airspeed.Mach.value, 15 , 300)	
+			self.Vspeed_selection(airspeed.Vspeed_input, 5, -65)
 			glPopMatrix()
 			glPushMatrix()
 			
@@ -342,7 +391,7 @@ class PFD_Guage(object):
 			glEnd()
 		
 
-		def Pitch_Marks(self, pitch, line_width, pixel_per_degree):
+		def Pitch_Marks(self, pitch, line_width, pixel_per_degree, loc_active):
 			def get_width(pitch):
 				x = int(round(pitch / 2.5))
 				if x==0:
@@ -359,15 +408,20 @@ class PFD_Guage(object):
 			#Uses pitch to determine which pitch lines need to be drawn
 			# Draws current pitch -25 degrees and +25 degrees
 			#pixel_per_degree = 7.25
+			start_point = 17.5
+			num_lines = 13
+			if loc_active: #If localizer is active don't draw two bottom lines, which interfere visually
+				num_lines -=2
+				start_point -= 5.0
 			glColor(white)
 			glPushMatrix() #Save matrix state
 			glLineWidth(line_width)
 			#pitch = pitch * -1
 			#Round pitch to nearest 2.5 degrees
 			start = round(pitch / 2.5) * 2.5
-			start = start - 17.5 # Go down 25 degrees
+			start = start - start_point # Go down 25 degrees
 			glTranslatef(0.0, start * pixel_per_degree, 0.0)
-			for i in range(13):
+			for i in range(num_lines):
 				glBegin(GL_LINES)
 				w = get_width(start)
 				glVertex2f(w * -1, 0.0)
@@ -436,10 +490,10 @@ class PFD_Guage(object):
 		def Flight_Director(self): #Draw the flight director
 			def draw_V(side):
 				glBegin(GL_LINE_STRIP)
-				glVertex2f(0,0)
-				glVertex2f(side *85, -32.0)
+				glVertex2f(side* 10,-2) #Flight director stars offset from center
+				glVertex2f(side * 85, -32.0)
 				glVertex2f(side * 100, -22.0)
-				glVertex2f(0,0)
+				glVertex2f(side * 10,-2) #slope is 22/100 
 				glEnd()
 				glBegin(GL_LINE_STRIP)
 				glVertex2f(side* 100, -22.0)				
@@ -497,38 +551,47 @@ class PFD_Guage(object):
 			bank_ticks(-1)
 			
 			
-		def Dynamic_Triangle(self, roll): #Triangle that moves durning turn
+		def Dynamic_Triangle(self, roll, turn_coord): #Triangle that moves durning turn
 			glLineWidth(2.5)
 			a = abs(roll)
 			radius = 120.0
 			size = 8.0
-			glColor3f(1.0, 1.0, 1.0)
-			if a >= 30:  #Bank Angle check turns yellow if angle too great
-				glColor3f(1.0, 1.0, 0.0)
-			glBegin(GL_LINE_LOOP)
+			
+			#Draw Traingle
+			if a >= 30:  #Bank Angle check turns yellow and goes solid
+				glColor(yellow)
+				glBegin(GL_POLYGON)
+			else:
+				glColor(white)
+				glBegin(GL_LINE_LOOP)
+			#Draw actually traingle
 			glVertex2f(0.0, radius)
 			glVertex2f(size, radius - size * 2)
 			glVertex2f(-size, radius - size * 2)
 			glEnd()
+			#Draw rectangle below, (This also acts as turn coordinator)
 			top = radius - size * 2 -1.0
+			x_offset = (size * 2) * (turn_coord / 127.0) #via trun coordinator move rectangel left or right
+			#Draw vertex of rectangle
 			glBegin(GL_LINE_LOOP)
-			glVertex2f(-size, top)
-			glVertex2f(-size, top - 7.0)
-			glVertex2f(size, top - 7.0)
-			glVertex2f(size, top)
+			glVertex2f(-size + x_offset, top)
+			glVertex2f(-size + x_offset, top - 7.0)
+			glVertex2f(size + x_offset, top - 7.0)
+			glVertex2f(size + x_offset , top)
 			glEnd()
-			if a >=30: #If angle >=30 then fill in solid.
-				glBegin(GL_POLYGON)
-				glVertex2f(0.0, 102.0)
-				glVertex2f(-10.0, 90.0)
-				glVertex2f(-10.0, 85.0)
-				glVertex2f(10.0, 85.0)
-				glVertex2f(10.0, 90.0)
-				glEnd()
+			#if a >=30: #If angle >=30 then fill in solid.
+				#glBegin(GL_POLYGON)
+				#glVertex2f(0.0, 102.0)
+				#glVertex2f(-10.0, 90.0)
+				#glVertex2f(-10.0, 85.0)
+				#glVertex2f(10.0, 85.0)
+				#glVertex2f(10.0, 90.0)
+				#glEnd()
 				
 		def Glide_Slope(self, offset, x, y):
 			
-			def ILS_Diamond(h,w, dir):
+			
+			def GS_Diamond(h,w, dir):
 				#dir direction of error either 1 or -1
 				glBegin(GL_LINE_STRIP)
 				h=h*dir
@@ -536,7 +599,7 @@ class PFD_Guage(object):
 				glVertex2f(0.0, h)
 				glVertex2f(w, 0.0)
 				glEnd()
-
+				
 			max = 127 #max valuke of offset
 			scale = 72.0 / max
 			w = 10
@@ -570,14 +633,30 @@ class PFD_Guage(object):
 			glColor(green)
 			glLineWidth(3.0)
 			if offset > -127: #As long as not on bottom draw top arrow
-				ILS_Diamond(w+2, w-2, 1) #On Guage.py file
+				GS_Diamond(w+2, w-2, 1) #On Guage.py file
 			if offset < 127: #AS long as not on top draw bottom arrow
-				ILS_Diamond(w+2, w-2, -1)
+				GS_Diamond(w+2, w-2, -1)
 			glPopMatrix()
+			
+			
 		def Localizer(self,offset, x, y):
-			w = 8
+			
+			def LOC_Diamond(h,w, dir):
+				#dir direction of error either 1 or -1
+				glBegin(GL_LINE_STRIP)
+				w=w*dir
+				glVertex2f(0.0, -h)
+				glVertex2f(w, 0.0)
+				glVertex2f(0.0, h)
+				glEnd()
+			w = 10
+			lines_offset = 50
+			lines_h = w 
 			seg = 20 #Number of segements drawn for circle
-			scale = 1
+			scale = 0.8 #Make outer lines equal to 1 'degree" 
+			max = 90 * scale #The limit, (arrow turns into 1/2 arrow)
+			
+			
 			# Draws Glide_Slope if ILS Active
 			# x,y is offset from attitude guage
 			glPushMatrix()
@@ -586,26 +665,34 @@ class PFD_Guage(object):
 			glLineWidth(2.0)
 			glColor(white)
 			glBegin(GL_LINES)
-			glVertex2f( 0.0, -w)
-			glVertex2f(0.0, w)
+			glVertex2f( 0.0, w-2)
+			glVertex2f(0.0, -(w-2))
 			glEnd()
-			# Draw Top Circles
-			glPushMatrix()
-			for m in range(2):
-				glTranslate(40.0, 0.0 , 0.0)
-				glCircle(w - 2 ,seg)
-			glPopMatrix()
+			# Draw 2 Outer Lines
+			glLineWidth(3.0)
+			glBegin(GL_LINES)
+			glVertex2f(lines_offset, -lines_h)
+			glVertex2f(lines_offset, lines_h)
+			
+			glVertex2f(-lines_offset, -lines_h)
+			glVertex2f(-lines_offset, lines_h)
+			glEnd()
+			glLineWidth(2.0)
 			#------
-			# Draw Bottom Circles
-			glPushMatrix()
-			for m in range(2):
-				glTranslate(-40.0, 0.0 , 0.0)
-				glCircle(w - 2 ,seg)
-			glPopMatrix()
-			#----
-			glTranslate(offset * scale, 0.0, 0.0)
-			glColor(purple)
-			ILS_Diamond(w+2, w-2)
+			pos = -offset * scale #invert needed.
+			#Limit it to max deflection
+			if pos>= max:
+				pos= max
+			elif pos <=-max:
+				pos =-max
+							
+			glTranslate(pos, 0.0, 0.0)
+			glColor(green)
+			glLineWidth(3.0)
+			if pos > -max: #As long as not on bottom draw top arrow
+				LOC_Diamond(w-2, w+2, -1) #On Guage.py file
+			if pos < max: #AS long as not on top draw bottom arrow
+				LOC_Diamond(w-2, w+2, 1)
 			glPopMatrix()
 			
 		def Markers(self, marker, frame_time, x, y):
@@ -628,13 +715,13 @@ class PFD_Guage(object):
 			glPushMatrix()
 			glTranslatef(x,y,0)
 			glLineWidth(2.0)
-			if marker.on == marker.IM:
+			if marker.value == marker.IM:
 				marker.count+=frame_time
 				if marker.count > 0.2:
 					glColor(white)
 					draw_box(w,h,"IM")
 					if marker.count > 0.4: marker.count-=0.4
-			elif marker.on == marker.MM:
+			elif marker.value == marker.MM:
 				marker.count+=frame_time
 				if marker.count >=1.2: marker.count -=1.2
 				num = int(marker.count / 0.2) #Get 0-4 if 0 or 2 flash off, else flash on
@@ -642,10 +729,10 @@ class PFD_Guage(object):
 				if (num == 1) | (num>2): #If thoes numbers draw on
 					glColor(yellow)
 					draw_box(w,h,"MM")
-			elif marker.on == marker.OM:
+			elif marker.value == marker.OM:
 				marker.count+=frame_time
 				if marker.count > 0.5:
-					glColor(blue)
+					glColor(cyan)
 					#print frame_time
 					draw_box(w,h,"OM")
 					if marker.count > 1.0: marker.count-=1.0
@@ -653,10 +740,16 @@ class PFD_Guage(object):
 			glPopMatrix()
 			
 		#Start of Draw_Atitude
-		def draw(self, attitude, r_alt, frame_time, x, y):
+		def draw(self, attitude, r_alt, active_Nav, frame_time, x, y):
+			#This is used to figure out if localizer is active on attitude guage.
+			if (active_Nav.hasLoc.value) & (r_alt.value <= 600):
+				loc_active = True
+			else: 
+				loc_active = False
+			
 			pixel_per_degree = 7.25
-			pitch = attitude.pitch
-			roll = attitude.bank
+			pitch = -attitude.pitch.value
+			roll = -attitude.bank.value
 			guage_width = 310
 			guage_heigth = 290
 			#pitch = 0.0
@@ -673,27 +766,39 @@ class PFD_Guage(object):
 			glTranslatef(0.0, pitch * -pixel_per_degree, 0.0)  # Pitch
 			self.Grnd_Sky()
 			#self.Horizon()
-			self.Pitch_Marks(pitch, 2.5, pixel_per_degree) #Pitch and linewidth
+			self.Pitch_Marks(pitch, 2.5, pixel_per_degree, loc_active) #Pitch and linewidth
 			glPopMatrix() #Exit pitch
-			self.Dynamic_Triangle(roll)
+			self.Dynamic_Triangle(roll, attitude.turn_coord.value)
 			glPopMatrix() # Exit Rotation
 			self.Center_Mark()
 			glLineWidth(2.5)
 			self.Static_Triangle()
 
-			if attitude.FD_active: 
+			if attitude.FD_active.value: 
+				FDbank = -attitude.FD_bank.value
+				FDpitch = -attitude.FD_pitch.value
+				FDpitch_diff = pitch - FDpitch
+				#make sure pitch differeance isn't grater than 10 degrees, so FD always is visible
+				if FDpitch_diff>10:
+					FDpitch_diff = 10
+				elif FDpitch_diff <-10:
+					FDpitch_diff = -10
+				
 				glPushMatrix()
-				glRotate(attitude.bank - attitude.FD_bank, 0.0, 0.0, 1.0)
+				glRotate(roll - FDbank, 0.0, 0.0, 1.0)
 				glPushMatrix()
-				glTranslatef(0.0, (attitude.pitch - attitude.FD_pitch) * -pixel_per_degree, 0.0) #Pitch)
+				glTranslatef(0.0, (FDpitch_diff) * -pixel_per_degree, 0.0) #Pitch)
 				self.Flight_Director()
 				glPopMatrix()
 				glPopMatrix()
 			
 			glDisable(GL_SCISSOR_TEST)
 			self.Markers(attitude.marker, frame_time, 115, 148) #Draw Outer, Middle, or Inner Marker
-			self.Glide_Slope(-attitude.GS, 145, 0)
-			#self.Localizer(-50, 0, -120)
+			if active_Nav.hasGS.value: #If glide slope is active.
+				self.Glide_Slope(-active_Nav.GSI.value, 145, 0)
+			#print active_Nav.hasLoc.value, r_alt
+			if loc_active:
+				self.Localizer(-active_Nav.CDI.value, 0, -120)
 			glPopMatrix()
 			
 			
@@ -1126,7 +1231,7 @@ class PFD_Guage(object):
 			flash_num =20
 			if MDA.visible: #Check to see if on / visible
 				#Check if need to turn on notifier and flash it
-				if diff <=0: # Turn notifier on and due flash logic
+				if diff <=0: # Turn notifier on and off due flash logic
 					if MDA.flash<flash_num:
 						MDA.frame_count-=1
 						MDA.notift = True
@@ -1215,7 +1320,7 @@ class PFD_Guage(object):
 			#Display IN
 			glTranslate(58,-1,0) #move for In display
 			glScalef(0.12,0.12,0)
-			glText("IN",40)
+			glText("I N",40)
 			glPopMatrix()
 
 		def draw(self, altimeter,x, y, frame_time):
@@ -1231,10 +1336,10 @@ class PFD_Guage(object):
 			
 			
 			if altimeter.MDA.visible: self.mda_bug(altimeter.value, altimeter.MDA, pixel_per_foot, y_center, frame_time)
-			self.thousand_alt_bug(altimeter.value, altimeter.bug, y_center)
+			self.thousand_alt_bug(altimeter.value, altimeter.bug.value, y_center)
 			self.thousand_tick_marks(altimeter.value, y_center)
-			self.alt_bug(altimeter.value, altimeter.bug, y_center)
-			self.radar_alt(altimeter.absolute, pixel_per_foot, y_center, altimeter.DH) #Yellow line with slashes beneth.
+			self.alt_bug(altimeter.value, altimeter.bug.value, y_center)
+			self.radar_alt(altimeter.absolute.adjusted, pixel_per_foot, y_center, altimeter.DH) #Yellow line with slashes beneth.
 			glPopMatrix()
 			glPushMatrix()
 			
@@ -1242,9 +1347,9 @@ class PFD_Guage(object):
 			#print altimeter.value
 			glDisable(GL_SCISSOR_TEST)
 			
-			self.alt_bug_text(altimeter.bug, x + 30 , y + 345)
-			self.alt_setting_disp(altimeter.pressure, x+7, y -25)
-			self.radar_disp(altimeter.absolute, x -87, y - 20, altimeter.DH.notify)
+			self.alt_bug_text(altimeter.bug.value, x + 30 , y + 345)
+			self.alt_setting_disp(altimeter.pressure.value, x+7, y -25)
+			self.radar_disp(altimeter.absolute.adjusted, x -87, y - 20, altimeter.DH.notify)
 			if altimeter.MDA.visible: self.mda_text(altimeter.MDA.bug, x-100, y + 323)
 			if altimeter.DH.visible: self.dh_text(altimeter.DH.bug, x -100, y + 343)
 			glPopMatrix()	
@@ -1460,7 +1565,7 @@ class PFD_Guage(object):
 				glEnd()
 			
 			def magnetic_track(self, radius, HSI):
-				diff = HSI.Mag_Heading - HSI.Mag_Track
+				diff = HSI.Mag_Heading.value - HSI.Mag_Track.value
 				glPushMatrix()
 				glRotate(diff,0,0,1.0)
 				glTranslate(0,radius-12,0)
@@ -1492,11 +1597,11 @@ class PFD_Guage(object):
 					glPopMatrix()
 				
 				#Check for change in heading bug, reset timer is changed
-				if HSI.Heading_Bug != HSI.Heading_Bug_prev:
+				if HSI.Heading_Bug.value != HSI.Heading_Bug_prev:
 					HSI.Heading_Bug_Timer = 5.0 / frame_time #Calculate number of frames for 5 seconds
-					HSI.Heading_Bug_prev = HSI.Heading_Bug
+					HSI.Heading_Bug_prev = HSI.Heading_Bug.value
 				#diff = is difference between current heading and bug
-				diff = HSI.Mag_Heading - HSI.Heading_Bug
+				diff = HSI.Mag_Heading.value - HSI.Heading_Bug.value
 				if diff <0: diff+=360 #Make sure diff is between 0 and 360
 				glPushMatrix()
 				glRotate(diff + 90, 0, 0, 1) #90 degree offset is since bug_polygon above is rotated
@@ -1529,7 +1634,7 @@ class PFD_Guage(object):
 				glTranslatef(radius - 3, 0.0, 0.0)
 				bug_polygon()
 				glPopMatrix()
-				if draw_line: text(-150,157,HSI.Heading_Bug)
+				if draw_line: text(-150,157,HSI.Heading_Bug.value)
 				
 			def Bearing(self, radius, aircraft):
 				def draw(radius, heading, NavAid, num): #Angle is difference from heading type is either 1 or 2
@@ -1579,6 +1684,7 @@ class PFD_Guage(object):
 							#Done drawing MiniArrow
 								
 						#Begin draw_text
+						glLineWidth(2.0)
 						glPushMatrix()	
 						if num==1:
 							glTranslatef(-170, -60, 0)
@@ -1588,6 +1694,7 @@ class PFD_Guage(object):
 							glColor(cyan)
 						mini_arrow(num)
 						#Draw Text to left of mini arrow
+						
 						glTranslatef(-70, -8, 0) #Move over to begginning of text
 						glScalef(0.15, 0.15, 1.0)
 						glText(name, 90)
@@ -1595,8 +1702,8 @@ class PFD_Guage(object):
 						#Done with draw_text
 					
 					#Draw if Active (Draw Text always)
-					if NavAid.active:
-						angle = Check_360(heading - NavAid.bearing)
+					if NavAid.hasNav.value:
+						angle = Check_360(heading - NavAid.radial.value + 180)
 						glLineWidth(2.0)
 						glPushMatrix()
 						glRotate(angle,0,0,1)
@@ -1629,25 +1736,25 @@ class PFD_Guage(object):
 				#Computer Bearing1
 				HSI = aircraft.HSI
 				if HSI.Bearing1 == HSI.VOR:
-					draw(radius,aircraft.HSI.Mag_Heading, aircraft.VOR1, 1)
+					draw(radius,aircraft.HSI.Mag_Heading.value, aircraft.NAV.VOR1, 1)
 				elif HSI.Bearing1 == HSI.ADF:
-					draw(radius, aircraft.HSI.Mag_Heading, aircraft.ADF1, 1)
+					draw(radius, aircraft.HSI.Mag_Heading.value, aircraft.NAV.ADF1, 1)
 				elif HSI.Bearing1 == HSI.FMS:
 					print "FMS Future"
-				else:
-					print "ERROR: HSI.Bearing1 Out of Range"
+				#else:
+				#	print "ERROR: HSI.Bearing1 Out of Range"
 				#Compute Bearing2
 				if HSI.Bearing2 == HSI.VOR:
-					draw(radius,aircraft.HSI.Mag_Heading, aircraft.VOR2, 2)
-				elif HSI.Bearing1 == HSI.ADF:
-					draw(radius, aircraft.HSI.Mag_Heading, aircraft.ADF2, 2)
-				else:
-					print "ERROR: HSI.Bearing2 Out of Range"
+					draw(radius,aircraft.HSI.Mag_Heading.value, aircraft.NAV.VOR2, 2)
+				elif HSI.Bearing2 == HSI.ADF:
+					draw(radius, aircraft.HSI.Mag_Heading.value, aircraft.NAV.ADF2, 2)
+				#else:
+				#	print "ERROR: HSI.Bearing2 Out of Range"
 				#draw(radius,140,1)
 				
 				
-			def Nav(self, radius, VOR, hdg):
-				diff = hdg - VOR.OBS
+			def Nav(self, radius, NAV, hdg):
+				diff = hdg - NAV.OBS.value
 				if diff <0: diff+=360 #Make sure diff is between 0 and 360
 				glPushMatrix()
 				glRotate(diff, 0,0, 1)
@@ -1685,9 +1792,9 @@ class PFD_Guage(object):
 				glVertex2f(0, -radius + offset)
 				glVertex2f(0, -radius + offset + h)
 				glEnd()
-				if VOR.active:
+				if NAV.hasNav.value:
 					#Draw CDI Line
-					cdi_x = VOR.CDI / 127.0 * (x* 2 + r) #x*2+r is max difflection = to outmost point of outer circle				
+					cdi_x = NAV.CDI.value / 127.0 * (x* 2 + r) #x*2+r is max difflection = to outmost point of outer circle				
 					glBegin(GL_LINES)
 					glVertex2f(cdi_x, -h)
 					glVertex2f(cdi_x, h)
@@ -1695,15 +1802,15 @@ class PFD_Guage(object):
 					#Draw To/From Triangle
 					offset, w, h = 60, 7, 15
 					glBegin(GL_LINE_LOOP)
-					if VOR.ToFrom: #If true TO false is FROM
+					if NAV.ToFrom.value == NAV.ToFrom.TO:
 						#Draw To Arrow
 						glVertex2f(0, offset)
 						glVertex2f(-w, offset - h)
 						glVertex2f(w, offset -h)
-					else:
-						glVertex2f(0, -offset)
-						glVertex2f(-w, -offset +h)
-						glVertex2f(w, -offset +h)
+					elif NAV.ToFrom.value == NAV.ToFrom.FROM:
+						glVertex2f(0, offset - h)
+						glVertex2f(-w, offset )
+						glVertex2f(w,  offset)
 					glEnd()
 				
 				#---
@@ -1749,20 +1856,25 @@ class PFD_Guage(object):
 					glPushMatrix()
 					glTranslatef(x,y,0)
 					#Do large Digit first if active
-					if active:
+					if (active) & (value>=0):
 						glPushMatrix()
 						glScale(0.15, 0.15, 1.0)
-						glText("%2d." %(value // 1), 90)
+						glText("%2d" %(value // 1), 90)
 						glPopMatrix()
-						s = "  %d" %((value *10) % 10)
+						if value>=100:
+							s="   "
+						else:
+							s = "  .%d" %((value *10) % 10)
 					else:
 						s = "---"
 					#Now do tenths digit and NM text. If not active then do "-----" NM
-					glTranslatef(-4, -0.2,0) #Move to appropriate place
+					glTranslatef(-8, -0.2,0) #Move to appropriate place
 					glPushMatrix()
 					glScalef(0.13, 0.13, 1)
+#					if value<100: #Do not draw tenths digit if over 100
 					glText(s, 140)
-					glText("NM", 90)
+					if s != "---": #if --- then no need for NM text
+						glText("NM", 90)
 					glPopMatrix()
 					#----
 					glPopMatrix()
@@ -1777,11 +1889,15 @@ class PFD_Guage(object):
 			#Draw Text to Left 
 				glPushMatrix()
 				glLineWidth(2.0)
-				text_name(VOR.name, VOR.active, x,y)
+				if VOR.hasLoc.value:
+					name = "LOC" + VOR.name[3]
+					text_name(name, VOR.hasNav.value, x,y)
+				else:
+					text_name(VOR.name, VOR.hasNav.value, x,y)
 				glColor(green)
-				text_course(VOR.OBS, x,y - 20)
-				text_DME(VOR.DME, VOR.active, x+7, y -45)
-				text_ID(VOR.ID, VOR.active, x, y-65)
+				text_course(VOR.OBS.value, x,y - 20)
+				text_DME(VOR.DME.value, VOR.hasNav.value, x+4, y -45)
+				text_ID(VOR.ID.value, VOR.hasNav.value, x, y-65)
 				
 				glPopMatrix()
 					
@@ -1792,12 +1908,12 @@ class PFD_Guage(object):
 				glTranslate(x,y,0.0)
 				glColor(white)
 				self.Plane_Figure()
-				self.Heading_Ticks(radius, aircraft.HSI.Mag_Heading)
+				self.Heading_Ticks(radius, aircraft.HSI.Mag_Heading.value)
 				self.marks(radius)
 				self.magnetic_track(radius, aircraft.HSI)
-				self.Nav(radius, aircraft.VOR1, aircraft.HSI.Mag_Heading)
+				self.Nav(radius, aircraft.NAV.active, aircraft.HSI.Mag_Heading.value)
 				self.Bearing(radius, aircraft)
-				self.Nav_text(aircraft.VOR1, -240, 80)
+				self.Nav_text(aircraft.NAV.active, -240, 80)
 				self.heading_bug(radius, aircraft.HSI, aircraft.frame_time)
 
 				glPopMatrix()
@@ -1811,11 +1927,16 @@ class PFD_Guage(object):
 		self.VSI = self.VSI_Guage()
 	def draw(self,aircraft,x,y): #x,y is the xy cordinates of center of PFD guage
 		#rint aircraft.autopilot.ias_bug
-		self.speed.draw(aircraft.airspeed, x - 248, y - 140)
-		self.artifical_horizon.draw(aircraft.attitude,aircraft.altimeter.absolute,aircraft.frame_time, x + 0, y +0)
+		#print "Speed", time.time()
+		self.speed.draw(aircraft.airspeed, aircraft.onground.value, x - 248, y - 140)
+		#print "A_Horizon", time.time()
+		self.artifical_horizon.draw(aircraft.attitude,aircraft.altimeter.absolute,aircraft.NAV.active, aircraft.frame_time, x + 0, y +0)
+		#print "Altimeter", time.time()
 		self.alt_g.draw(aircraft.altimeter, x + 155, y - 150, aircraft.frame_time)
-		
+		#print "HSI", time.time()
 		self.HSI.draw(x, y-330, aircraft) #Just send the whole aircraft object, as lot of data drawn on HSI
-		self.VSI.draw(x+ 240, y-305, 70, aircraft.VertSpeed)
+		#print "VSI", time.time()
+		self.VSI.draw(x+ 240, y-305, 70, aircraft.VSI.value)
+		#draw_Text(x,y+200, "TC= %d" %aircraft.attitude.turn_coord.value)
 		
 		

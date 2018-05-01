@@ -29,7 +29,9 @@ import time
 import sys
 import math
 from guage import * #All add on guage functions colors etc.
-
+import navdata
+import formula
+import config
 
 #class scissor(
 class ND_Guage(object):
@@ -150,9 +152,10 @@ class ND_Guage(object):
 				glVertex2f(-13.0, -28.0)
 				glVertex2f(13.0, -28.0)
 				glEnd()
+				
 			
 			def magnetic_track(self, radius, HSI):
-				diff = HSI.Mag_Heading - HSI.Mag_Track
+				diff = HSI.Mag_Heading.value - HSI.Mag_Track.value
 				glPushMatrix()
 				glRotate(diff,0,0,1.0)
 				glTranslate(0,radius+8,0)
@@ -185,7 +188,7 @@ class ND_Guage(object):
 				
 				#Uses PFD Heading Bug to check if heading bug changed and reset timer
 				#diff = is difference between current heading and bug
-				diff = HSI.Mag_Heading - HSI.Heading_Bug
+				diff = HSI.Mag_Heading.value - HSI.Heading_Bug.value
 				if diff <0: diff+=360 #Make sure diff is between 0 and 360
 				glPushMatrix()
 				glRotate(diff + 90, 0, 0, 1) #90 degree offset is since bug_polygon above is rotated
@@ -232,7 +235,7 @@ class ND_Guage(object):
 				#Draws back blackground on curve
 				
 				#Add two tops coordinates of the polygon
-				glColor(cyan)
+				glColor(black)
 				glBegin(GL_POLYGON)
 				Draw_List(left)
 				glEnd()
@@ -243,12 +246,14 @@ class ND_Guage(object):
 			def Range_Circle(self, small, large, range):
 				
 				glColor(white)
-				glLineWidth(2.0)
+
+				glLineWidth(1.0)
 				#Small Circle
 				glBegin(GL_LINE_STRIP)
 				Draw_List(small)
 				glEnd()
 				#Large Circle
+				glLineWidth(2.0)
 				glBegin(GL_LINE_STRIP)
 				Draw_List(large)
 				glEnd()
@@ -264,6 +269,96 @@ class ND_Guage(object):
 				glText("%g" %(range/2.0))
 				glPopMatrix()
 					
+			def navaid_text(self, text, x,y):
+				#This is used by all navaid drawing function to draw text next to navaid
+				# Draw Text next to it
+				glTranslatef(x,y,0)
+				glPushMatrix()
+				glScalef(0.18,0.18,1.0)
+				glText(text, 90)
+				glPopMatrix()
+			
+			def draw_WAYPOINT(self, wp):
+				#glLineWidth(2.0)
+				glBegin(GL_LINE_STRIP)
+				Draw_List(self.WAYPOINT_cord)
+				glEnd()
+				
+				self.navaid_text(wp.ID, 20, -10)
+				
+			def draw_navaid_VOR(self, nav_obj):
+				#Function for drawing VOR's only
+				glLineWidth(2.0)
+				glColor(cyan)
+				#Draw navaid
+				#VOR Part
+				glBegin(GL_LINE_STRIP)
+				Draw_List(self.VOR_cord)
+				glEnd()
+				#Tacan part
+				if nav_obj.TACAN:
+					glBegin(GL_LINES)
+					Draw_List(self.VORTAC_cord)
+					glEnd()
+				self.navaid_text(nav_obj.ID, 20, -10)
+				
+			def draw_navaid_NDB(self, nav_obj):
+				#Function for drawing only NDB's
+				#Draw navaid
+				#Inner circle
+				glBegin(GL_LINE_STRIP)
+				Draw_List(self.NDB_cord)
+				glEnd()
+				
+				self.navaid_text(nav_obj.ID, 15, -10)
+				
+			def draw_navaid_APT(self, nav_obj):
+				#Function for drawing Airtports
+				#Draw Oval
+				glBegin(GL_LINE_STRIP)
+				Draw_List(self.APT_cord)
+				glEnd()
+
+				self.navaid_text(nav_obj.ID, 15, -10)
+				
+			def draw_navaid_FIX(self, nav_obj):
+				#Function for drawing Intersections (Fixes)
+				#Draw Triangle
+				glBegin(GL_LINE_STRIP)
+				Draw_List(self.INT_cord)
+				glEnd()
+
+				self.navaid_text(nav_obj.ID, 15, -10)
+
+			def drawflightplan(self, flightplan, plane_latlong, true_head, disp_radius, ND_range):
+#					def drawfixes(self, navfix, plane_latlong, true_head, disp_radius, ND_range):
+				#Draw the flight plan.
+				#First draw lines
+				xy_array=[] #saves the xy points to draw lines last.
+				glLineWidth(2.0)
+				glColor(purple)
+				draw_range = int(ND_range * 1.1)
+				scalefactor = disp_radius / 1.0 / ND_range
+				for wp in flightplan.points:
+					dist, bearing = formula.dist_bearing(plane_latlong, wp.latlong)
+					dist = dist * scalefactor
+					n_bearing = (bearing + (360.0-true_head))
+					x,y = formula.polar_to_xy(dist,n_bearing)
+					xy_array.append((x,y))
+					glPushMatrix()
+					glTranslate(x,y,0)
+					self.draw_WAYPOINT(wp)
+					glPopMatrix()
+				#xy_array holds points of a	
+				glPushMatrix()
+				glBegin(GL_LINE_STRIP)
+				for l in xy_array:
+					glVertex2f(l[0],l[1])
+#							draw_func(fix)
+				glEnd()
+				glPopMatrix()
+				
+				
 			def __init__(self):
 				#Used to calculate circle coordinates only once.
 				radius = 280 #radius of inner circle
@@ -280,29 +375,104 @@ class ND_Guage(object):
 				self.black_bg_cord_R= List_Circle(radius , 15, 65,0)
 				self.black_bg_cord_R.insert(0,[x2,y])
 				self.black_bg_cord_R.append([0,y]) #Add center top point
+				#Calculate WayPoint Shapes
+				self.WAYPOINT_cord = List_Waypoint(15, 4)
+				self.VOR_cord = List_VOR(12)
+				self.VORTAC_cord = List_VORTAC(12, 6)
+				self.APT_cord = List_Circle(12, 12)
+				self.INT_cord = List_Circle(10,3) #Since only 3 segments looks like triangle
+				self.NDB_cord = List_Circle(6, 8)
+			
+
 				
+			def drawfixes(self, navfix, plane_latlong, true_head, disp_radius, ND_range):
+				if navfix.on: #If it aint' on then don't draw anything.
+					type = navfix.type
+					#Determine which drawing function is  correct for type of navaid
+					if (type == navdata.VORL_type) | (type == navdata.VORH_type):
+						draw_func=self.draw_navaid_VOR
+					elif type == navdata.NDB_type:
+						draw_func=self.draw_navaid_NDB
+					elif type == navdata.FIX_type:
+						draw_func=self.draw_navaid_FIX
+					elif type == navdata.APT_type:
+						draw_func = self.draw_navaid_APT
+					glLineWidth(2.0)
+					glColor(cyan)
+					draw_range = int(ND_range * 1.1)
+					scalefactor = disp_radius / 1.0 / ND_range
+					for i in navfix.visible: #Go through each of the visible indexes and draw them
+						fix = navfix.array[i]
+						dist, bearing = formula.dist_bearing(plane_latlong, fix.latlong)
+						if dist <= draw_range:
+							dist = dist * scalefactor
+							n_bearing = (bearing + (360.0-true_head))
+							#Dont worry about heading yet
+							x,y = formula.polar_to_xy(dist,n_bearing)
+							glPushMatrix()
+							glTranslatef(x,y,0)
+	#						self.draw_navaid(fix)
+							draw_func(fix)
+							glPopMatrix()
+					
+					
+					
 			def draw(self, x,y, aircraft):
 				radius = 280 #Radius of outer circle
+				LatLong = (aircraft.Latitude.value, aircraft.Longitude.value)
 				glEnable(GL_SCISSOR_TEST)
 				scissor(514,0,508,y+ radius+2) #2 pixels in from each side 
 				glPushMatrix()
 				glTranslate(x,y,0.0)
+				#Start with fixes
+				self.drawfixes(navdata.VORH, LatLong, aircraft.HSI.True_Heading, radius, aircraft.ND.range.value)
+				#self.drawfixes(navdata.VORL, LatLong, aircraft.HSI.True_Heading, radius, aircraft.ND.range.value)
+				self.drawfixes(navdata.NDB, LatLong, aircraft.HSI.True_Heading, radius, aircraft.ND.range.value)
+				self.drawfixes(navdata.FIX, LatLong, aircraft.HSI.True_Heading, radius, aircraft.ND.range.value)
+				self.drawfixes(navdata.APT, LatLong, aircraft.HSI.True_Heading, radius, aircraft.ND.range.value)
+				self.drawflightplan(navdata.flightplan, LatLong, aircraft.HSI.True_Heading, radius, aircraft.ND.range.value)
+				self.Black_Background(self.black_bg_cord_L,self.black_bg_cord_R)
 				glColor(white)
 				self.Plane_Figure()
+				glPushMatrix()
+				glTranslate(50,50,0)
+				glPopMatrix()
+				
 				self.Range_Circle(self.small_circle_cord, self.large_circle_cord, aircraft.ND.range.value)
-				#self.Black_Background(self.black_bg_cord_L,self.black_bg_cord_R)
+				
 				scissor(514,0,508, 768) #Chack scissor to only to x cord checking
-				self.Heading_Ticks(radius, aircraft.HSI.Mag_Heading)
+				self.Heading_Ticks(radius, aircraft.HSI.Mag_Heading.value)
 				self.magnetic_track(radius, aircraft.HSI)
 				#self.Bearing(radius, aircraft)
 				self.heading_bug(radius, aircraft.HSI)
-				self.Heading_Disp(radius,aircraft.HSI.Mag_Heading)
+				self.Heading_Disp(radius,aircraft.HSI.Mag_Heading.value)
 				glPopMatrix()
 			
 
-	def __init__(self):
-		self.Moving_Map = self.Moving_Map_Guage()
+	def init_load(self, navaid, range, plane):
+		count =0
+		for i in navaid.array:
+			dist_away = formula.dist_latlong_nm(plane, i.latlong)
+			i.dist_away = dist_away
+			if dist_away <= range:
+				navaid.visible.append(count)
+			#	print i.ID, formula.dist_bearing(plane, i.latlong), plane, i.latlong
+			count+=1
 
+	def __init__(self, aircraft):
+		self.Moving_Map = self.Moving_Map_Guage()
+		#Calculate Distance fron all Points
+		plane = (aircraft.Latitude.value, aircraft.Longitude.value)
+		self.init_load(navdata.VORH, config.max_VOR_range, plane)
+		self.init_load(navdata.VORL, config.max_VOR_range, plane)
+		self.init_load(navdata.NDB, config.max_NDB_range, plane)
+		self.init_load(navdata.FIX, config.max_FIX_range, plane)
+		self.init_load(navdata.APT, config.max_APT_range, plane)
+#		for num in navdata.VOR.visible:
+#			navobj  = navdata.VOR.array[num]
+#			print navobj.ID, navobj.dist_away, navobj.Freq
+		
+			
 	def draw(self,aircraft,x,y): #x,y is the xy cordinates of center of ND guage
 		#rint aircraft.autopilot.ias_bug
 		self.Moving_Map.draw(x, y-175, aircraft) #Just send the whole aircraft object, as lot of data drawn on HSI

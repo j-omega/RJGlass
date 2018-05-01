@@ -156,18 +156,23 @@ def DrawWindow():
 	divider()
 	#glTranslate(1.0,0.0,0.0)
 	#glPushMatrix()
+	#print "PFD", time.time()
 	PFD.draw(aircraft_data,250,445)
+	#print "ND", time.time()
 	ND.draw(aircraft_data,512+256, 400)
 	
 	#If Nodata is coming from Flight Sim, show on screen
-	if aircraft_data.nodata==1:
+	if aircraft_data.nodata:
 		draw_nodata(50,500)
 		
+	
 	#glPopMatrix()
 	#  since this is double buffered, swap the buffers to display what just got drawn. 
 	glDisable(GL_SCISSOR_TEST) #Disable Scissor test so whole display gets swaped
 	#If Nodata is coming from Flight Sim, show on screen
-	if aircraft_data.nodata==1:
+	draw_FPS(20,740, aircraft_data.frame_time)
+	
+	if aircraft_data.nodata:
 		draw_nodata(50,500)
 	
 	#glutSwapBuffers()
@@ -221,36 +226,52 @@ def main(x,y,mode):
 	
 	#Set up correct function for selected mode
 	if mode==config.TEST: mode_func = aircraft_data.test
-	elif mode==config.FSX: mode_func = aircraft_data.read_FSX_UDP
+	elif mode==config.FSXSP0:
+		mode_func = aircraft_data.read_FSX
+		aircraft_data.setup_SimConnect(mode)
+	elif mode==config.FSXSP1:
+		mode_func = aircraft_data.read_FSX
+		aircraft_data.setup_SimConnect(mode)
+	elif mode==config.FSXSP2: #Not tested yet
+		mode_func = aircraft_data.read_FSX
+		aircraft_data.setup_SimConnect(mode)
+	
+		
 	else:
 		print "ERROR: Mode in config file is not defined"
 		sys.exit()
 	#aircraft_data.read_FSX_UDP()
 	#Setup Keyboard 
-	keyboard.setup_lists(aircraft_data)
+	keys = keyboard.keylist()
+	#keyboard.setup_lists(aircraft_data)
+	keys.setup_lists(aircraft_data)
+	#print "Starting first Window Draw"
+	#keyboard.setup_lists()
 	#Inititalize View
-	while True:
+	while not (aircraft_data.quit_flag):
 		glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
+		#print time.time()
 		DrawWindow()
+		#print "Drew Window"
 		pygame.display.flip()
+		#print "flip"
 		#Do mode
+		#print "Mode", time.time()
 		mode_func()
-		#Below line used for testing.
-		#aircraft_data.decode_FSX("3000.0, 0.0, 0.0, 120.0, 234.3, 29.92, 0, 0.200, -200, 0, 100, 200, 10, -10, 1, 10.3, 1, 5, -5, 3000, 200, 200")
-		# Check for escape key to exit. Else run the keyboard module pressed function
+		# Check for keypresses
+		aircraft_data.globaltime = time.time()
 		for event in pygame.event.get():
-			if event.type in (QUIT, KEYDOWN):
-				print event
-				if (event.key == 27) | (event.key == 113):
-					print "FPS "
-					print count / (time.time() - starttime)
-					return
-				else:
-					keyboard.pressed(event.key, event.mod)
+			print event
+			if event.type == KEYDOWN:
+				#print event
+				keys.pressed(event.key, event.mod, aircraft_data.globaltime)
+			elif event.type == KEYUP:
+				keys.keyup_event()
+				
+		#Check to see if button is being held down.
+		keys.check_stuckkey(aircraft_data.globaltime)
+				
 	
-	
-	
-
 # Print message to console, and kick off the main to get it rolling.
 global count
 #global scissor
@@ -258,11 +279,20 @@ scissor.x_s = 1.1 #Just assign these, will be reset later.
 scissor.y_s = 1.0
 count = 0
 print "Hit ESC key to quit."
-PFD = PFD_mod.PFD_Guage()
-ND = ND_mod.ND_Guage()
 aircraft_data = aircraft.data()
-aircraft_data.set_UDP(config.port) #Setup UDP Ports
+PFD = PFD_mod.PFD_Guage()
+ND = ND_mod.ND_Guage(aircraft_data)
+print "Main Loop"
 #Run main, and get window size and operation mode from config file. config.py
 main(config.window_x, config.window_y, config.mode)
 #main(800,600)
+#===================
+# Shuting Down
+#===================
+
+#Print average Frames per second on shutdown
+print "FPS ", count / (time.time() - starttime)
+#Try to kill the thread if it exists. Closes it down on exit				
+if config.mode != config.TEST: #If simconnected connected, kill the thread.
+	aircraft_data.kill_SimConnect()
 	

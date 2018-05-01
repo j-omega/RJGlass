@@ -10,7 +10,7 @@
 from distutils.core import setup
 import py2exe
 
-myVersion='0.2.0'
+myVersion='0.3.0'
 
 setup(options={'py2exe': {
 #'dist_dir':'gne_wol_'+myVersion,

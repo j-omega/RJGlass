@@ -1,18 +1,8 @@
-RJGlass v 0.3.2  README Notes  7/25/08 Michael LaBrie monkey256@verizon.net
+RJGlass v 0.3.0  README Notes  2/28/08 Michael LaBrie monkey256@verizon.net
 
 Note: This is beta software. With alot of future functionality in the works.
 
 RJGlass is an open source, OpenGL model of a Canadian Regional Jet (CRJ) Glass Cockpit. It uses the Simconnect API, to recieve data from FSX. It is designed to run on a seperate computer, for a home cockpit type setup.
-
-=========== Changes since 0.3.0
-Mainly just new functionality added. 
-Very limited, custom coded AP functionality. (HDG, Pitch, and Bank hold modes implemented only.) Still a work in progress.
-Altimeter setting now workin in HPA.
-Moving map should now work throughout North America.
-Audio altitude callouts
-Some new keyboard commands.
-Will now communicate with ESP (FSX commerical version).
-
 
 =========== Major Changes since 0.2 ====================
 
@@ -126,15 +116,10 @@ f	------	Cycle Fixes (Intersections) on and off
 TAB	------	Change Nav Source (Nav1 or Nav2)
 
 	VSpeeds
-Alt-z	------	Cycle thru Vspeed selected (V1/VR/V2)
+Alt-z	------	Cycle thru Vspeed selected (V1/VR/V2/VT)
 Ctrl-z	------	Vspeed Visible (On/Off)
 z	------	Increase selected Vspeed
 Shift-z	------ 	Decrease selected Vspeed
-
-	VT Speed
-Ctrl-y	------	Vspeed Visible (On/Off)
-y	------	Increase selected Vspeed
-Shift-y	------ 	Decrease selected Vspeed
 
 	Decision Height (DH)
 Ctrl-d	------	DH Visible (On/Off)
@@ -145,24 +130,5 @@ Shift-d	------ 	Decrease DH
 Ctrl-m	------	MDA Visible (On/Off)
 m	------	Increase MDA
 Shift-m ------	Decrease MDA
-
-	Heading Bug
-h	------  Increase Heading Bug
-Shift-h ------  Decrease Heading Bug
-
-	Kollsman (Altimeter Setting)
-b	------  Reset setting (29.92/1013)
-Alt-b	------	Change units (InHg/HPA)
-Shift-b	------	Increase setting
-Ctrl-b	------	Decrease setting
-
-	AutoPilot
-F1	------	Auto Pilot (On/Off)
-F2	------	Flight Director (On/Off)
-F3	------	Heading Hold
-F12	------	Increase Pitch/ VS
-Shift-F12 ----	Decrease Pitch/ VS
-
-
 
 ========= END ==================

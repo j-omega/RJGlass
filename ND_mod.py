@@ -193,9 +193,9 @@ class ND_Guage(object):
 				if diff <0: diff+=360 #Make sure diff is between 0 and 360
 				glPushMatrix()
 				glRotate(diff + 90, 0, 0, 1) #90 degree offset is since bug_polygon above is rotated
-				if (HSI.Heading_Bug_Timer >0): #Enable drawing of line
+				if (HSI.Heading_Bug_Timer > globaltime.value): #Enable drawing of line
 					draw_line=True
-					HSI.Heading_Bug_Timer -=1
+					#HSI.Heading_Bug_Timer -=1
 				else:
 					draw_line=False
 				if (60 <= diff <= 300): #Checks to see if within plus or minus 60 degrees
@@ -408,6 +408,8 @@ class ND_Guage(object):
 						if dist >=(navfix.max_range + 2): 
 							navfix.remove_from_visible(fix, total_dis_traveled, plane_latlong[0], plane_latlong[1])
 						elif (dist <= draw_range) & (not fix.inFlightplan): #If fix in flight plan do not draw, as it will be drawn twice.
+							#if fix.ID == "KFFC": #TESTING PURPOSES ONLY
+							#	print fix.ID, dist, bearing, plane_latlong, fix.latlong
 							dist = dist * scalefactor
 							n_bearing = (bearing + (360.0-true_head))
 							
@@ -424,7 +426,7 @@ class ND_Guage(object):
 				radius = 280 #Radius of outer circle
 				LatLong = (aircraft.Latitude.value, aircraft.Longitude.value)
 				glEnable(GL_SCISSOR_TEST)
-				scissor(514,0,508,y+ radius+2) #2 pixels in from each side 
+				scissor(x-254,0,508,y+ radius+2) #2 pixels in from each side 
 				glPushMatrix()
 				glTranslate(x,y,0.0)
 				#Start with fixes
@@ -444,13 +446,14 @@ class ND_Guage(object):
 				
 				self.Range_Circle(self.small_circle_cord, self.large_circle_cord, aircraft.ND.range.value)
 				
-				scissor(514,0,508, 768) #Chack scissor to only to x cord checking
+				scissor(x-254,0,508, 768) #Chack scissor to only to x cord checking
 				self.Heading_Ticks(radius, aircraft.HSI.Mag_Heading.value)
 				self.magnetic_track(radius, aircraft.HSI)
 				#self.Bearing(radius, aircraft)
 				self.heading_bug(radius, aircraft.HSI)
 				self.Heading_Disp(radius,aircraft.HSI.Mag_Heading.value)
 				glPopMatrix()
+				glDisable(GL_SCISSOR_TEST)
 			
 
 	def init_load(self, navaid, plane):
@@ -489,6 +492,7 @@ class ND_Guage(object):
 		
 		
 	def __init__(self):
+		self.name = "ND"
 		self.Moving_Map = self.Moving_Map_Guage()
 		#Calculate Distance fron all Points
 		
@@ -502,6 +506,7 @@ class ND_Guage(object):
 		self.reset_navaids(aircraft.Latitude.value, aircraft.Longitude.value)
 			
 	def draw(self,aircraft,x,y): #x,y is the xy cordinates of center of ND guage
+		y+=400
 		#rint aircraft.autopilot.ias_bug
 		self.Moving_Map.draw(x, y-175, aircraft) #Just send the whole aircraft object, as lot of data drawn on HSI
 		#Check for large movement of plane
@@ -509,6 +514,7 @@ class ND_Guage(object):
 		if aircraft.ND.dis_traveled.increment >= 10: #If plane move more than 10 miles in one second
 			self.reset_navaids(aircraft.Latitude.value, aircraft.Longitude.value)
 			aircraft.ND.dis_traveled.reset()
+			print "RESET NAVAID PLANE MOVED TOO FAST"
 			
 		self.check_close_navaids(aircraft.ND.dis_traveled.total, aircraft.Latitude.value, aircraft.Longitude.value)
 		

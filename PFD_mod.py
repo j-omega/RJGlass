@@ -27,7 +27,7 @@ from OpenGL.GLU import *
 
 import time
 import sys, os
-import math
+import math, pickle
 #This is code to import config file (config.py)
 try:
 	import config
@@ -1792,17 +1792,17 @@ class PFD_Guage(object):
 					glPopMatrix()
 				
 				#Check for change in heading bug, reset timer is changed
-				if HSI.Heading_Bug.value != HSI.Heading_Bug_prev:
-					HSI.Heading_Bug_Timer = 5.0 / frame_time #Calculate number of frames for 5 seconds
-					HSI.Heading_Bug_prev = HSI.Heading_Bug.value
+				#if HSI.Heading_Bug.value != HSI.Heading_Bug_prev:
+				#	HSI.Heading_Bug_Timer = 5.0 / frame_time #Calculate number of frames for 5 seconds
+				#	HSI.Heading_Bug_prev = HSI.Heading_Bug.value
 				#diff = is difference between current heading and bug
 				diff = HSI.Mag_Heading.value - HSI.Heading_Bug.value
 				if diff <0: diff+=360 #Make sure diff is between 0 and 360
 				glPushMatrix()
 				glRotate(diff + 90, 0, 0, 1) #90 degree offset is since bug_polygon above is rotated
-				if (HSI.Heading_Bug_Timer >0): #Enable drawing of line
+				if (HSI.Heading_Bug_Timer > globaltime.value): #Enable drawing of line
 					draw_line=True
-					HSI.Heading_Bug_Timer -=1
+					#HSI.Heading_Bug_Timer -=1
 				else:
 					draw_line=False
 				
@@ -2273,6 +2273,7 @@ class PFD_Guage(object):
 		
 #Start of PFD_mod main
 	def __init__(self):
+		self.name = "PFD"
 		self.speed = self.Speed_Guage()
 		self.artifical_horizon = self.Attitude_Guage()
 		self.alt_g = self.Alt_Guage()
@@ -2281,6 +2282,18 @@ class PFD_Guage(object):
 		self.FMA = self.FMA_Guage()
 		
 	def draw(self,aircraft,x,y): #x,y is the xy cordinates of center of PFD guage
+		#self.test = aircraft.altimeter_c()
+		#d = aircraft.get_PFD_data()
+		#d = aircraft.PFD_pickle.pickle_string()
+		#d = aircraft.EICAS_pickle.pickle_string()
+		
+		#print len(d)
+		#print "%r" %d
+		#self.test = pickle.loads(d)
+		#print self.test.attitude.bank.value
+		
+		y+=445 #Fine tune position
+		x-=6
 		declutter = aircraft.declutter.active
 		#rint aircraft.autopilot.ias_bug
 		#print "Speed", time.time()

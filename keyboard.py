@@ -24,7 +24,7 @@
 
 
 from pygame.locals import *
-
+import guage
 import navdata
 #import aircraft
 
@@ -35,9 +35,15 @@ SHIFT = 3
 class keylist(object):
 	
 	
-	def __init__(self, aircraft):
+	def __init__(self, aircraft, FMS_guage, right_screen, left_screen):
 		self.keydown = False #Used for status of sticky keys
-		self.setup_lists(aircraft) #Load in all keybindings
+		self.setup_lists(aircraft, right_screen, left_screen) #Load in all keybindings
+		self.mousedown = False
+		self.FMS_guage = FMS_guage
+		self.right_screen = right_screen
+		self.left_screen = left_screen
+		self.aircraft = aircraft
+		
 	def check_events(self,events, globaltime):
 		#keys.check(pygame.event.get())
 		for event in events:
@@ -46,11 +52,17 @@ class keylist(object):
 				self.pressed(event.key, event.mod, globaltime)
 			elif event.type == KEYUP:
 				self.keyup_event()
-				
+			elif event.type == MOUSEBUTTONDOWN:	
+				self.mouse_pressed(event.button, event.pos, globaltime)
+			elif event.type == MOUSEBUTTONUP:
+				self.mouse_keyup_event()
 		self.check_stuckkey(globaltime)
+		self.check_mousestuck(globaltime)
 
 	def keyup_event(self):
 		self.keydown = False
+	def mouse_keyup_event(self):
+		self.mousedown = False
 		
 	def check_stuckkey(self, globaltime):
 		#Stuck key delay
@@ -68,7 +80,27 @@ class keylist(object):
 				pass
 			else:
 				check_delay(1.5, 0.1, globaltime) #If key down for more than 1.5 second then simulate 10 /second
-						
+		
+	def check_mousestuck(self, globaltime):
+		delay = 1.5
+		if self.mousedown: #If mouse button still down
+			if globaltime - self.mousedown_time > delay:
+				self.FMS_guage.mousepress(self.button, self.pos, self.aircraft.FMS, True)
+				
+	def mouse_pressed(self, button, pos, globaltime):
+		self.button = button #Save last button pressed
+		self.pos = pos #Save last pos pressed
+		if not self.mousedown:
+			self.mousedown = True
+			self.mousedown_time = globaltime
+			if self.right_screen.guage_active == self.FMS_guage:
+				if pos[0] > 512:
+					pos = (pos[0] - 512, pos[1])
+					self.FMS_guage.mousepress(button, pos, self.aircraft.FMS)
+			elif self.left_screen.guage_active == self.FMS_guage:
+				if pos[0] <=512:
+					self.FMS_guage.mousepress(button, pos, self.aircraft.FMS)
+				
 	
 	def pressed(self, key, mods, globaltime):
 		#
@@ -90,15 +122,16 @@ class keylist(object):
 					self.keydown_func = i
 				
 
-		
+	
+	
 	#Set up association with keys and function upon a keydown event	
 	#
 	
-
-
-	def setup_lists(self, aircraft):
+	def setup_lists(self, aircraft, right_screen, left_screen):
 	#	global key_list, key_list_ctrl, key_list_alt, key_list_shift
 		#key_list = [[K_b, aircraft.ND.range.down], [K_v, aircraft.ND.range.up]]
+		
+		
 		
 		def add_key(key, func, ctrl_alt = None, repeat = False):
 		#global key_list, key_list_ctrl, key_list_alt
@@ -119,6 +152,16 @@ class keylist(object):
 		self.key_list_shift = []
 
 
+		#Debuging Keys for Programming Only
+		add_key(K_1, guage.globaltest.one_inc, SHIFT, True)
+		add_key(K_1, guage.globaltest.one_dec, CTRL, True)
+		add_key(K_2, guage.globaltest.two_inc, SHIFT, True)
+		add_key(K_2, guage.globaltest.two_dec, CTRL, True)
+		add_key(K_3, guage.globaltest.three_inc, SHIFT, True)
+		add_key(K_3, guage.globaltest.three_dec, CTRL, True)
+		
+		
+		
 		add_key(K_PAGEDOWN, aircraft.ND.range.down)
 		add_key(K_PAGEUP, aircraft.ND.range.up)
 		add_key(K_1, aircraft.HSI.cycle_Bearing1)
@@ -171,6 +214,13 @@ class keylist(object):
 		add_key(K_F10, aircraft.AP.ALT_dec, CTRL, True)
 		#Testing Keys for debugging devloping
 		add_key(K_t, aircraft.testing_key, None)
+		add_key(K_KP_PLUS, aircraft.dynamic_inc, None)
+		add_key(K_KP_MINUS, aircraft.dynamic_dec, None)
+		#Cycle the right and left screen
+		add_key(K_RIGHTBRACKET, right_screen.cycle, None)
+		add_key(K_RIGHTBRACKET, right_screen.cycle_reverse, SHIFT)
+		add_key(K_LEFTBRACKET, left_screen.cycle, None)
+		add_key(K_LEFTBRACKET, left_screen.cycle_reverse, SHIFT)
 		
 		#print "KEY LIST /n"
 		#print key_list

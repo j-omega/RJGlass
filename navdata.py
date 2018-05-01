@@ -21,6 +21,7 @@
 import sys, os
 #import config
 import time
+import copy
 import math
 import formula
 
@@ -116,7 +117,70 @@ class data_file_c(object):
 		return l
 		
 		
-
+class awy_c(object):
+	def __init__(self):
+		#self.fixes = [] #Array of an array of fixes.
+		#Dictionary of each awarway and its data
+		self.dict = {} #List of all airways and their locations
+	
+	
+	def check_fix(self,name, list):
+			index = [] #empty list
+			l = []
+			count = 0
+			for i in list:
+				if name in i:
+					index.append(count)
+					l.append(i)
+				count +=1	
+				
+			return index
+	
+		#returns index of list where name is present
+	def check_for_end(self, end, r, list, route):
+		startfix = route[-1]
+		#print "CHECK FOR END", r, startfix, list, route
+		if ((not self.end_done) & (list != [])):
+			if len(r)>0:
+				for y in r:
+					if end in list[y]:
+						self.end_done= True
+						route.append(end)
+						self.end_route = copy.copy(route)
+					else:
+						#Adds next waypoiny
+						if list[y][0] == startfix:
+							r3 = route + [list[y][1]]
+						else:
+							r3 = route + [list[y][0]]
+						new = list[:y] + list[y+1:]
+						r4 = self.check_fix(r3[-1], new)
+						#print "R4", r4, r3[-1], new
+						self.check_for_end(end, r4, new, r3)
+	
+	
+	def get_route(self, airway, start, end):
+		#This will get the route of a airway. By airway name and start fix and end fix.
+		
+		result = [] #Set to return None unless route if found
+		self.end_done = False
+		self.end_route = []
+		if self.dict.has_key(airway):
+			#See if start point exists
+			done = False
+			list = self.dict[airway]
+			r = self.check_fix(start, list)
+			if len(r)>0: #If stuff found
+				self.check_for_end(end, r, list, [start])
+						
+												
+				#else: 
+			
+		else: 
+			print "AIRWAY NOT FOUND"
+			
+		return self.end_route
+	
 class fix_c(object):
 	def __init__(self, type, range):
 		self.array = []
@@ -136,6 +200,7 @@ class fix_c(object):
 	def find_closest(self):
 		#This find the closest non visible fix.
 		d = 500000.0
+		temp = None
 		for fix in self.array:
 			if 0< fix.total_travel_away < d:
 				temp = fix
@@ -159,7 +224,7 @@ class fix_c(object):
 		#See if closest navaid is within limits
 		fix = self.closest
 		#print "Prelim ", fix.ID, fix.total_travel_away, total_dis_traveled
-		if fix.total_travel_away <= total_dis_traveled + self.max_range: #Recheck
+		if fix.total_travel_away <= (total_dis_traveled + self.max_range): #Recheck
 			d = formula.dist_latlong_nm((fix.latlong),(planelat,planelon))
 			#print "Checking", fix.ID, d
 			if d <= self.max_range:
@@ -207,9 +272,10 @@ def search(fixname, array):
 	for i in array:
 		if i.ID==fixname:
 			#print c,i
-			t.append((c,i))
+			t.append(i)
 		c+=1
 	return t
+
 
 def load_nav_file(VORH, VORL, NDB):
 	#Set indexes for this file
@@ -315,7 +381,49 @@ def load_apt_file(APT):
 				APT.add(navaid_obj(APT_type, ID, lat, long, 0.0))
 				#f.write("%s,%s,%f,%f\n" %(ID,name,lat,long))
 	apt_file.close()
-	#f.close()
+	
+def load_awy_file(AWY):
+	#Set indexes for this file
+	awy_file = data_file_c( 'awy.dat')
+	awy_file.open()
+	#f = file("test.dat","w")
+	#temp_list = []
+	AWY.list = []
+	line_list = awy_file.read()
+	while awy_file.file_end ==False:
+		lat = float(line_list[1])
+		long = float(line_list[2])
+		#Frist do latlong check on all data and put data in memory (temp_list)
+		if (awy_file.valid(lat, long)):
+			airway = line_list[9]
+			for a in airway.split('-'):
+				#temp_list.append([a, line_list[0],line_list[3]])
+				if a not in AWY.list:
+					AWY.list.append(a)
+				#Add to dict	
+				out = [line_list[0], line_list[3]]
+				if AWY.dict.has_key(a): #Check to see if airway already exists
+					if out not in AWY.dict[a]: #Check for duplicates
+						AWY.dict[a].append(out)
+				else: #No airway present, so make new airway
+					AWY.dict[a] = [out]
+						
+		line_list = awy_file.read()
+	awy_file.close()
+	
+def fix_search(name):
+	
+	result = []
+	if len(name) == 3:
+		result = search(name, VORH.array) + search(name, VORL.array) + search(name, NDB.array)
+	elif len(name) == 5:
+		result = search(name, FIX.array)
+	elif len(name) == 2:
+		result = search(name, NDB.array)
+	elif len(name) == 4:
+		result = search(name, APT.array)
+	
+	return result
 #=====================================
 #Begin Module Code
 FIX = fix_c(FIX_type, config.max_FIX_range) #Array of Intersections (5 characters)
@@ -323,26 +431,35 @@ VORH = fix_c(VORH_type, config.max_VOR_range)#Array of VORH's High altitude VOR'
 VORL = fix_c(VORL_type, config.max_VOR_range)
 NDB = fix_c(NDB_type, config.max_NDB_range)#Array of NDB's
 APT = fix_c(APT_type, config.max_APT_range) #Array of Airports
+AWY = awy_c() #Array of airways with fixes
 APT.on = False
 FIX.on = False
 NDB.on = False
 flightplan = flightplan_obj()
-#nav_list = nav_file(data_dir, 'nav.dat')
+
+print "Loading VOR's and NDB's...."
 load_nav_file(VORH, VORL, NDB)
+
+print "Loading Fixs ...."
 load_fix_file(FIX)
+
+print "Loading Airports ....."
 load_apt_file(APT)
+
+print "Loading Airway ....."
+load_awy_file(AWY)
 
 #start = time.time()
 #for i in range(1000):
 #	d = search("LAX", nav_list)
 # Need to make a flight plan
-flightplan.add(APT.array[1479])
+#flightplan.add(APT.array[1479])
 #flightplan.add(FIX.array[25608])
-flightplan.add(VORL.array[186])
-flightplan.add(VORH.array[525])
-flightplan.add(FIX.array[6426])
+#flightplan.add(VORL.array[186])
+#flightplan.add(VORH.array[525])
+#flightplan.add(FIX.array[6426])
 #flightplan.add(FIX.array[25614])
-flightplan.add(APT.array[316])
+#flightplan.add(APT.array[316])
 if __name__ == "__main__":
 	
 	def text_search(s, array, name):
@@ -351,6 +468,23 @@ if __name__ == "__main__":
 			print name
 			for i in t:
 				print i[0], i[1].ID, i[1].latlong
+				
+	#print AWY.dict
+	print len(AWY.dict)
+	#print AWY.fixes	
+	print "DONE"
+	print AWY.dict['V520']
+	#print AWY.get_route('J16', 'BTG', 'FSD')
+	#print AWY.get_route('J16', 'FSD', 'BTG')
+	#print AWY.get_route('J16', 'BTG', 'BOS')
+	#print AWY.get_route('J16', 'BOS', 'BTG')
+	print AWY.get_route('V520', 'LKT', 'MQG')
+	print AWY.get_route('V520', 'LTJ', 'LKT')
+	print AWY.get_route('V545', 'HTN', 'ISN')
+	#print AWY.dict['J16']
+	#for i in range(100,120,1):
+	#	print AWY.list[i]
+	#	print AWY.fixes[i]
 #print VOR_fix.array
 #	t =  search("LAX",VOR.array)
 	
@@ -371,9 +505,10 @@ if __name__ == "__main__":
 #	t = search("KADG", APT.array)
 #	for i in t:
 #		print i
-print APT.array[1479].ID
+#print APT.array[1479].ID
 #	print len(APT.array)
 	#for i in APT.array:
 	#	print i.ID
 #print time.time()- start
 #print d
+

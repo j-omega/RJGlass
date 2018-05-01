@@ -41,6 +41,7 @@ def dist_latlong((lat1, lon1), (lat2, lon2)):
 	if e>1.0: e = 1.0 #Make sure between -1 and 1 before acos function run.
 	elif e<-1.0: e= -1.0
 	d = acos(e)
+	
 	#d = acos(sin(lat1)*sin(lat2)+cos(lat1)*cos(lat2)*cos(lon2-lon1))
 
 	return d
@@ -63,7 +64,8 @@ def course_latlong((lat1, lon1), (lat2, lon2),d): #Everything is in Radians.
 		course=0
 	else:
 		temp = (sin(lat2)-sin(lat1)*cos(d))/(sin(d)*cos(lat1))
-		if temp <0.0: temp = 0.0
+		if temp <-1.0: temp = -1.0 #Make sure between -1 and 1 before calling acos(temp)
+		elif temp >1.0: temp = 1.0 
 		if sin(lon1-lon2)<0:
 			course = acos(temp)    
 		else:
@@ -102,4 +104,3 @@ if __name__ == "__main__":
 	d = time.time()
 	print distance
 	print course
-	#print d - v 

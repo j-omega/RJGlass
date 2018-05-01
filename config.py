@@ -9,10 +9,10 @@ FSXSP0 = 2 #Recieve data from test routine
 FSXSP1 = 3
 FSXSP2 = 4
 ESP = 5
+CLIENT = 6
 #Flight Director Constant type
 Vshape = 0
 LINES = 1
-
 
 
 # Screen / Window Setup
@@ -21,17 +21,17 @@ window_x = 1024
 #Y resolution of window
 window_y = 768
 #Full screen
-full_screen=True
-
+full_screen= False
 #Set Mode of program
 # TEST = run test routine (will not recieve any data from Flight Sim program)
-# FSXSP0 or FSXSP1 or FSXSP2 or ESP = Recieve data from FSX Using PySimConnect.py
-#mode = TEST #Note: case sensitive
-mode = FSXSP2
+# FSXSP0 or FSXSP1 or FSXSP2 = Recieve data from FSX Using PySimConnect.py
+mode = TEST #Note: case sensitive
+#mode = FSXSP2
 #FSX Sim Connect (Config) See README on how to configure SimConnect.xml file.
-addr = '192.168.1.45'  #IP Address of computer running FSX.
+addr = '192.168.1.40'  #IP Address of computer running FSX.
 port = 1500
-timeout = 25.0  #Number of seconds before Connection to FSX will timeout
+server_port = 4000
+timeout = 5.0  #Number of seconds before Connection to FSX will timeout
 #Data directory name (The name of the folder where navdata is stored)
 data_directory = "data"
 sound_directory = "sounds"
@@ -39,7 +39,8 @@ sound_directory = "sounds"
 splash = True
 splash_filename = 'images/splash.png'
 splash_delay = 0
-
+#Metric Units
+use_metric_units = False
 #Set max and min lat long values for nav data
 #Only points within these ranges will be stored in the Nav Database
 max_long= -42
@@ -60,5 +61,10 @@ Gear_speed_limit = 220
 FD_Type = Vshape
 #RA scale Enable
 RA_scale = True
+#Brake Constants  (Estimates for the CRJ-700)
+brake_cooling_CONST = 0.0012
+brake_heating_CONST = 15000 
+brake_sensor_CONST = 0.0073
 #Will output debug file of AP
-debug_AP = True
+debug_AP = False
+logfile = False

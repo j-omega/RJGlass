@@ -42,9 +42,10 @@ class event_obj(object):
 		
 class DataRequest(object):
 	#Attempt to store all value as data definition objects
-	def __init__(self, SimCon, definition, name, unit, type):
+	def __init__(self, SimCon, definition, name, unit, type, func=None):
 		#Create Data Definition and Add it to 
 		#First send via TCP to Simconnect
+		self.func = func
 		self.value = 0
 		d = struct.pack('<I', definition) + SimCon.string256(name) + SimCon.string256(unit)
 		e = d + struct.pack('<iii', type, 0, -1)
@@ -69,7 +70,7 @@ class SimEvent(object):
 		self.eventid = eventid
 		self.data = data
 	def send(self):
-		#print self.data.send_value
+		#print self.eventid, self.data.value
 		#print "%r" %self.data
 		d = struct.pack('<iiiii', 0, self.eventid, self.data.value, 1, 16)
 		self.SimCon.client.send(d, 0x05)
@@ -139,8 +140,8 @@ class DataDefinition(object):
 		self.id = id
 		self.unpack_s = '<' #Always little edian
 		self.SimCon = SimCon
-	def add(self, name, unit, type, obj):
-		simobj = DataRequest(self.SimCon, self.id, name, unit, type)
+	def add(self, name, unit, type, obj, func=None):
+		simobj = DataRequest(self.SimCon, self.id, name, unit, type, func)
 		#print self.id
 		self.list.append(simobj)
 		self.objlist.append(obj)
@@ -211,7 +212,7 @@ class SimConnect_Client_c(threading.Thread):
 		
 		#Send connection header
 		#self.s.settimeout(None)
-		self.s.settimeout(15)
+		self.s.settimeout(config.timeout)
 		#self.s.setblocking(0)
 		name = self.FSX_name[::-1] #The 3 letter name abbriviation is inverted.
 		init_string= self.string256(self.app_name) + struct.pack('<IccccIIII', 0, chr(0), name[0], name[1], name[2], self.FSX_majorversion, self.FSX_minorversion, self.FSX_subversion, 0)
@@ -254,7 +255,10 @@ class SimConnect_Client_c(threading.Thread):
 		#print time.time()-self.clock
 			#try:
 			if self.recieve:
-				r = self.s.recv(1024)
+				try:
+					r = self.s.recv(1024)
+				except socket.timeout:
+					print "SERVER TIMED OUT (Will ReTry)"
 			else:
 				r = ''
 			#r =self.s.recv(1024)
@@ -274,7 +278,7 @@ class SimConnect_Client_c(threading.Thread):
 				out = decode_header(self.read_buffer)
 				if out[1]== self.protocol: #Check to see if protocol is correct
 					status = True #Used in return value
-					print "Header ", out
+					#print "Header ", out
 					if l>=out[0]: #Make sure buffer is large enough for entire data
 						num = decode_data(out[0], out[2]) #The length and type is send to decode data
 						l = len(self.read_buffer)
@@ -384,7 +388,10 @@ class SimConnect(object):
 				i =0
 				#print parsed
 				for v in parsed:
-					data_def.objlist[i].value = v
+					if data_def.list[i].func == None:
+						data_def.objlist[i].value = v
+					else:
+						data_def.objlist[i].value = data_def.list[i].func(v)
 					#print data_def.objlist[i], v
 					i+=1
 				return id
@@ -403,8 +410,8 @@ class SimConnect(object):
 		return define_id
 	
 if __name__ == '__main__':
-	s = SimConnect('RJGlass', FSXSP0)
-	s.connect('192.168.1.42', 1500)
+	s = SimConnect('RJGlass_As', 2, True)
+	s.connect('192.168.1.37', 1500, True)
 	s.receive()
 	s.Load_Flightplan('DTWCVG')
 	#s.definition_0 = s.create_DataDefinition(7)

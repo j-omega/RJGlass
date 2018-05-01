@@ -86,7 +86,7 @@ class callouts_c(object):
 					if callouts.active:	self.channel.queue(callouts.sound)
 					callouts.played = True#Weather sound active or not, it still keeps track if airplane passed altitude
 					callouts.time_played = temp_time
-			else: #else not played, meaning played and not reset yet				
+			else: #else not played, meaning played and not reset yet	
 				if alt > callouts.altitude + 100: #100' buffer, so you must be 100 above altitude before it calls it again
 					if temp_time - callouts.time_played > 120:	#120seconds
 						callouts.played = False #Sound is reset to played again

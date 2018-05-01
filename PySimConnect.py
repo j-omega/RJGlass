@@ -33,6 +33,13 @@ class data_obj(object):
 		self.value = value
 		self.adjusted = value #Used incase value needs to be adjusted from data inputed from FSX.
 
+class event_obj(object):
+	#Used to hold send event, with its data
+	def __init__(self,value):
+		self.value = value
+		self.event_id = 0 #Set for 0 initially, will be equal to index of event list for this object
+		self.update = False #Can be used  to tell when to update data to FSX.
+		
 class DataRequest(object):
 	#Attempt to store all value as data definition objects
 	def __init__(self, SimCon, definition, name, unit, type):
@@ -52,6 +59,64 @@ class DataRequest(object):
 	def get(self):
 		return self.value
 
+class SimEvent(object):
+	def __init__(self, SimCon, eventid, name, data):
+		#Mapit on Simconnect
+		d = struct.pack('<I', eventid) + SimCon.string256(name)
+		SimCon.client.send(d, 0x04)
+		self.SimCon = SimCon
+		#self.group_id = groupid
+		self.eventid = eventid
+		self.data = data
+	def send(self):
+		#print self.data.send_value
+		#print "%r" %self.data
+		d = struct.pack('<iiiii', 0, self.eventid, self.data.value, 1, 16)
+		self.SimCon.client.send(d, 0x05)
+	
+
+class EventList(object):
+		def __init__(self,SimCon):
+			self.list=[]
+			self.prioirty_list = [] #The id's of events that have just changed will be added here.
+			self.group_id = id
+			self.SimCon = SimCon
+			self.count = 1
+			self.cycle_count = 0
+			self.cycle_timer = 0
+		def add(self, name, data):
+			t = SimEvent(self.SimCon, self.count, name, data)
+			data.event_id = len(self.list) #Get index of where event id will be placed in list
+			self.list.append(t) #Add it to end of list
+			#self.list.append(SimEvent(self.SimCon, eventid, name))
+			
+			#AddClientEventToNotificationGroup
+			#d = struct.pack('<iii', self.group_id, self.count, 0)
+			#self.SimCon.client.send(d, 0x07)
+			self.count +=1
+			#return t
+			
+		def cycle(self):
+			#Cycle through all of the data in this notification one by one, to make sure data is correct
+			self.cycle_timer +=1
+			if self.cycle_timer  == 5:
+				self.cycle_timer = 0
+				self.cycle_count += 1
+				if self.cycle_count >= len(self.list):
+					self.cycle_count = 0
+				self.list[self.cycle_count].send()
+				#self.list[0].send()
+		def send_updates(self):
+			#Scans through group, if any have update = True, then send data to FSX and reset update flag.
+			for item in self.list:
+				if item.data.update == True:
+					item.data.update = False
+					item.send()
+		def set_priority(self, priority):
+			d = struct.pack('<ii', self.group_id, priority)
+			#self.SimCon.client.send(d, 0x09)
+			time.sleep(8)
+			
 class DataDefinition(object):
 	#Period Constants
 	NEVER = 0
@@ -107,9 +172,12 @@ class SimConnect_Client_c(threading.Thread):
 	def string256(self, s): #Takes a string and returns it padded to 256
 		return s.ljust(256, chr(0))
 	
-	def __init__(self, name, protocol, subversion):
+	def __init__(self, name, protocol, FSXname, majorversion, minorversion, subversion, recieve):
 		self.protocol = protocol
 		self.FSX_subversion = subversion
+		self.FSX_majorversion = majorversion
+		self.FSX_minorversion = minorversion
+		self.FSX_name = FSXname
 		self.app_name = name
 		self.clock = time.time()
 		self.count = 0
@@ -118,6 +186,7 @@ class SimConnect_Client_c(threading.Thread):
 		self.read_buffer = ''
 		self.packet_data = []
 		self.go = True
+		self.recieve = recieve
 	def attach_header(self, data, protocol, type, num):
 		size = len(data)
 		t = type | 0xF0000000
@@ -129,7 +198,6 @@ class SimConnect_Client_c(threading.Thread):
 		#Send the data, will add header, type is type of command
 		self.count += 1 #increment count, used to just number requests sent to FSX
 		mike = self.attach_header(data, self.protocol, type, self.count)
-		#print "%r" %mike
 		self.s.send(mike)
 		
 	
@@ -142,9 +210,12 @@ class SimConnect_Client_c(threading.Thread):
 		self.s.connect((addr, port))
 		
 		#Send connection header
-
-		self.s.settimeout(30)
-		init_string= self.string256(self.app_name) + struct.pack('<IccccIIII', 0, chr(0), 'X', 'S', 'F', 10, 0, self.FSX_subversion, 0)
+		#self.s.settimeout(None)
+		self.s.settimeout(15)
+		#self.s.setblocking(0)
+		name = self.FSX_name[::-1] #The 3 letter name abbriviation is inverted.
+		init_string= self.string256(self.app_name) + struct.pack('<IccccIIII', 0, chr(0), name[0], name[1], name[2], self.FSX_majorversion, self.FSX_minorversion, self.FSX_subversion, 0)
+		
 		self.send(init_string, 0x01) #The initial connect attempt to FSX.
 
 	def close(self):
@@ -182,11 +253,15 @@ class SimConnect_Client_c(threading.Thread):
 		while self.go:
 		#print time.time()-self.clock
 			#try:
-			r = self.s.recv(1024)
+			if self.recieve:
+				r = self.s.recv(1024)
+			else:
+				r = ''
+			#r =self.s.recv(1024)
 			#print "%r" %r
 			#self.read_buffer = self.read_buffer + r
 			self.read_buffer = r
-			print "Recived Bytes", len(r)
+			#print "Recived Bytes", len(r)
 			#except:
 			#	pass
 			#self.kill_timer += 1 #This is used to kill thread, if RJGlass crashes, or locks up.
@@ -237,33 +312,52 @@ class SimConnect(object):
 		self.data_dict[id] = t
 		return t
 		
+	def create_EventList(self):
+				e = EventList(self)
+				return e	
 	
 	def string256(self, s): #Takes a string and returns it padded to 256
 		return s.ljust(256, chr(0))
-		
 	
 	
-	def __init__(self, name, FSX_version):
+	
+	def __init__(self, name, FSX_version, recieve):
 		#Initalizes SimConnect
 		#Depending on your FSX_version you are connecting to, need to set protocol etc.
 #		self.read_buffer = ''
 		self.data_dict = {}
 		if FSX_version == config.FSXSP0:
 			FSX_subversion = 60905
+			FSX_major_version = 10
+			FSX_minor_version = 0
+			FSX_name = "FSX"
 			protocol = 2
 		elif FSX_version == config.FSXSP1:
 			FSX_subversion = 61355
+			FSX_major_version = 10
+			FSX_minor_version = 0
+			FSX_name = "FSX"
 			protocol = 3
-		elif FSX_version == config.FSXSP2: #Not tested
+		elif FSX_version == config.FSXSP2:
 			FSX_subversion = 61259
+			FSX_major_version = 10
+			FSX_minor_version = 0
+			FSX_name = "FSX"
 			protocol = 4
+		elif FSX_version == config.ESP :
+			FSX_subversion = 20
+			FSX_major_version = 1
+			FSX_minor_version = 0
+			FSX_name = "ESP"
+			protocol = 4
+			
 		#self.app_name = name
-		self.client = SimConnect_Client_c(name, protocol, FSX_subversion)
+		self.client = SimConnect_Client_c(name, protocol, FSX_name, FSX_major_version, FSX_minor_version, FSX_subversion, recieve)
 		self.data_list = [] #Sets up data list will be object eventually
 
-	def connect(self, addr, port):
+	def connect(self, addr, port, connect):
 		self.client.connect(addr,port)
-		self.client.start()
+		if connect: self.client.start()
 	
 	def close(self):
 		#Closes the connection with FSX

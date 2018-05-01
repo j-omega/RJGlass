@@ -25,15 +25,13 @@ from OpenGL.GLUT import *
 from OpenGL.GLU import *
 import pygame
 from pygame.locals import *
+from pygame import image
+#from PIL import Image
 
 #import config #local config.py file in same directory
 import time
 
 from guage import * #All add on guage functions colors etc. 
-import PFD_mod
-import ND_mod
-import aircraft #Does all of the aircraft_data
-import keyboard #Handles all keyboard commands
 
 #This is code to import config file (config.py)
 try:
@@ -47,101 +45,59 @@ except ImportError:
 	import config
 
 
-# so instead of saying: ESCAPE = 27, we use the following.
-ESCAPE = '\033'
-# Number of the glut window.
-window = 0
-
-class screen(object):
-	def __init__(self):
-		self.x_s = 1.0
-		self.y_s = 1.0
-	
-
-# A general OpenGL initialization function.  Sets all of the initial parameters. 
-def InitGL(x,y):
-	global window
-	
-	glutInit(())
-	
-	# Select type of Display mode:   
-	#  Double buffer 
-	#  RGBA color
-	# Alpha components supported 
-	# Depth buffer
-	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE)
-	
-	# get a 800 x 600 window 
-	#glutInitWindowSize(800, 600)
-	glutInitWindowSize(x,y)
-	# the window starts at the upper left corner of the screen 
-	glutInitWindowPosition(0, 0)
-	
-	# Okay, like the C version we retain the window id to use when closing, but for those of you new
-	# to Python (like myself), remember this assignment would make the variable local and not global
-	# if it weren't for the global declaration at the start of main.
-	window = glutCreateWindow("PFD")
-
-	# Register the drawing function with glut, BUT in Python land, at least using PyOpenGL, we need to
-	# set the function pointer and invke a function to actually register the callback, otherwise it
-	# would be very much like the C version of the code.	
-	glutDisplayFunc (DrawWindow)
-	
-	# Uncomment this line to get full screen.
-	glutFullScreen()
-	#glutEnterGameMode()
-	# When we are doing nothing, redraw the scene.
-	glutIdleFunc(DrawWindow)
-	
-	# Register the function called when our window is resized.
-	glutReshapeFunc (resize)
-	
-	# Register the function called when the keyboard is pressed.  `
-	glutKeyboardFunc (keyPressed)
-
-	glClearColor(0.0, 0.0, 0.0, 0.0)	# This Will Clear The Background Color To Black
-
 def InitPyGame():
 	glutInit(())
 	pygame.init()
 	if config.full_screen:
-		pygame.display.set_mode((1024,768), DOUBLEBUF|OPENGL|FULLSCREEN)
+		s = pygame.display.set_mode((1024,768), DOUBLEBUF|OPENGL|FULLSCREEN)
 	else:
-		pygame.display.set_mode((1024,768), DOUBLEBUF|OPENGL)
-	
+		s = pygame.display.set_mode((1024,768), DOUBLEBUF|OPENGL)
+	return s
 		
-def resize(w, h):
-	#global scissor
-	if h==0:
-		h=1
+def InitView(smooth, width, heigth):
+	glLoadIdentity()
+	glOrtho(0,width,0.0,heigth,-1.0,1.0)
 	
-	InitView(True, w, h)
-	#test_x = 1280 / 800.0
-	#test_y = 800.0 / 600.0
-	
-	#glViewport(0, 0, w, h);
-	#glMatrixMode(GL_PROJECTION);
-	#glLoadIdentity();
-	#gluPerspective(60.0, w/ h, 1.0, 20.0)
-	#glMatrixMode(GL_MODELVIEW)
-	#glLoadIdentity()
-	#glTranslatef (0.0, 0.0, -5.0)
-	
-	#return x_s, y_s
+	x_s = width/1024.0
+	y_s = heigth/768.0
 
+	glScalef(x_s, y_s, 1.0)
+	scissor.x_s = x_s
+	scissor.y_s = y_s
+	if smooth:
+		#Enable Smoothing Antianalising
+		glEnable(GL_LINE_SMOOTH)
+		glEnable(GL_BLEND)
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+		glHint(GL_LINE_SMOOTH_HINT, GL_DONT_CARE)
+		
+	#Clear Screen
+	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
+	
+	
+def DisplaySplash(filename, delay, window_x, window_y):
+	#Display needs to be initialized first.
+	i = image.load(filename)
+	splash_image = bitmap_image(i)
+	#Determine the x and y coords to put in center of screen.
+	splash_x = (window_x / 2) - (splash_image.w/2)
+	splash_y = (window_y /2) - (splash_image.h/2)
+	glRasterPos3f(splash_x,splash_y,0)
+	glDrawPixels(splash_image.w, splash_image.h, GL_RGBA, GL_UNSIGNED_BYTE, splash_image.tostring)
+	pygame.display.flip()
+	time.sleep(1)
+	
 def DrawWindow():
 	
-	def divider(): #Dividing line between instruments
+	def divider(): #Dividing vertical white line between instruments
 		glColor(white)
 		glLineWidth(2.0)
 		glBegin(GL_LINES)
 		glVertex2f(512.0, 0.0)
 		glVertex2f(512.0, 768.0)
-		#glVertex2f(405.0, 0.0)
-		#glVertex2f(405.0, 768)
 		glEnd()
 		
-	def draw_nodata(x,y):
+	def draw_nodata(x,y): #Draw no data text on screen.
 		glColor(red)
 		glLineWidth(5.0)
 		glPushMatrix()
@@ -150,149 +106,90 @@ def DrawWindow():
 		glText("NO SIM DATA", 100)
 		glPopMatrix()
 		
-	# Clear The Screen, Set orographic projectiong 2d.
 	global count
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT )
 	divider()
-	#glTranslate(1.0,0.0,0.0)
-	#glPushMatrix()
-	#print "PFD", time.time()
 	PFD.draw(aircraft_data,250,445)
-	#print "ND", time.time()
 	ND.draw(aircraft_data,512+256, 400)
 	
-	#If Nodata is coming from Flight Sim, show on screen
-	if aircraft_data.nodata:
-		draw_nodata(50,500)
-		
-	
-	#glPopMatrix()
-	#  since this is double buffered, swap the buffers to display what just got drawn. 
-	glDisable(GL_SCISSOR_TEST) #Disable Scissor test so whole display gets swaped
-	#If Nodata is coming from Flight Sim, show on screen
+	glDisable(GL_SCISSOR_TEST) #Disable any scissoring.
 	draw_FPS(20,740, aircraft_data.frame_time)
-	
+	#If Nodata is coming from Flight Sim, show on screen
 	if aircraft_data.nodata:
 		draw_nodata(50,500)
 	
-	#glutSwapBuffers()
-	count = count +1
 	
-	#aircraft_data.test()
-	#aircraft_data.read_UDP()
-	#aircraft_data.decode_FSX("0.1,0.1,0.1,0.1,0.1,30.12")
-	#aircraft_data.read_FSX_UDP()
-def InitView(smooth, width, heigth):
-	glLoadIdentity()
-	#glOrtho(0,800,0.0,600,-1.0,1.0)
-	glOrtho(0,width,0.0,heigth,-1.0,1.0)
-	#glMatrixMode(GL_PROJECTION)
-	#glLoadIdentity()
-	#glViewport(0,0,800,600)
-	#gluPerspective(45, 1.0, 0.1, 100.0)
-	#glMatrixMode(GL_MODELVIEW)
-	#glLoadIdentity()
-	#gluLookAt(0.0,0.0,5.0, 0.0,0.0,-1.0, 0.0,1.0,0.0)
+	count = count +1 #Used for FPS calc
 	
-	#x_s = width/800.0
-	#y_s = heigth/600.0
-	x_s = width/1024.0
-	y_s = heigth/768.0
 
-	glScalef(x_s, y_s, 1.0)
-	scissor.x_s = x_s
-	scissor.y_s = y_s
-	print "RESIZEING", width ,heigth
-	if smooth:
-		#Enable Smoothing Antianalising
-		glEnable(GL_LINE_SMOOTH)
-		glEnable(GL_BLEND)
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-		glHint(GL_LINE_SMOOTH_HINT, GL_DONT_CARE)
-		
-def main(x,y,mode):
-	global window
+	
+def main(mode):
+	#global window
 	global starttime
 	global count
-	s = screen()
-	#Initialize Window
-	# For now we just pass glutInit one empty argument. I wasn't sure what should or could be passed in (tuple, list, ...)
-	# Once I find out the right stuff based on reading the PyOpenGL source, I'll address this.
-	#InitGL(x,y)
-	InitPyGame()
-	InitView(True, x, y) #Argument True if you want smoothing
+	
+	
 	# Start Event Processing Engine	
 	starttime = time.time() # Used for FPS (Frame Per Second) Calculation
-	
 	#Set up correct function for selected mode
-	if mode==config.TEST: mode_func = aircraft_data.test
-	elif mode==config.FSXSP0:
-		mode_func = aircraft_data.read_FSX
-		aircraft_data.setup_SimConnect(mode)
-	elif mode==config.FSXSP1:
-		mode_func = aircraft_data.read_FSX
-		aircraft_data.setup_SimConnect(mode)
-	elif mode==config.FSXSP2: #Not tested yet
-		mode_func = aircraft_data.read_FSX
-		aircraft_data.setup_SimConnect(mode)
-	
-		
-	else:
-		print "ERROR: Mode in config file is not defined"
-		sys.exit()
-	#aircraft_data.read_FSX_UDP()
+	mode_func = aircraft_data.get_mode_func(mode)
 	#Setup Keyboard 
-	keys = keyboard.keylist()
-	#keyboard.setup_lists(aircraft_data)
-	keys.setup_lists(aircraft_data)
-	#print "Starting first Window Draw"
-	#keyboard.setup_lists()
+	keys = keyboard.keylist(aircraft_data)
+	#keys.setup_lists(aircraft_data)
 	#Inititalize View
-	while not (aircraft_data.quit_flag):
-		glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
-		#print time.time()
-		DrawWindow()
-		#print "Drew Window"
-		pygame.display.flip()
-		#print "flip"
-		#Do mode
-		#print "Mode", time.time()
-		mode_func()
-		# Check for keypresses
-		aircraft_data.globaltime = time.time()
-		for event in pygame.event.get():
-			print event
-			if event.type == KEYDOWN:
-				#print event
-				keys.pressed(event.key, event.mod, aircraft_data.globaltime)
-			elif event.type == KEYUP:
-				keys.keyup_event()
-				
-		#Check to see if button is being held down.
-		keys.check_stuckkey(aircraft_data.globaltime)
-				
 	
-# Print message to console, and kick off the main to get it rolling.
+	while not (aircraft_data.quit_flag):
+		glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT) #Clear Screen	
+		DrawWindow()
+		pygame.display.flip() #Update screen
+		mode_func() #Run aircraft mode function, to do all teh calaculations etc.
+		#Update globaltime
+		aircraft_data.globaltime = time.time()
+		globaltime.update(time.time())
+		# Check for keypresses
+		keys.check_events(pygame.event.get(), globaltime.value)		
+				
+#===========================================================================
+#Main program starts here
+#===========================================================================
 global count
 #global scissor
 scissor.x_s = 1.1 #Just assign these, will be reset later.
 scissor.y_s = 1.0
 count = 0
-print "Hit ESC key to quit."
-aircraft_data = aircraft.data()
+x = config.window_x
+y = config.window_y
+#Initialize Window
+InitPyGame()
+InitView(True, x,y) #Argument True if you want smoothing
+#Load Splash Screen if enabled
+if config.splash:
+	DisplaySplash(config.splash_filename, config.splash_delay, x, y)
+
+#Import the rest of the modules here, after splash screen, so loading is done while splash screen is displayed.
+import PFD_mod
+import ND_mod
+import aircraft #Does all of the aircraft_data
+import keyboard #Handles all keyboard commands
+
+#Initialize the guages
 PFD = PFD_mod.PFD_Guage()
-ND = ND_mod.ND_Guage(aircraft_data)
+ND = ND_mod.ND_Guage()
+aircraft_data = aircraft.data(PFD)
+ND.initialize(aircraft_data)
+
 print "Main Loop"
 #Run main, and get window size and operation mode from config file. config.py
-main(config.window_x, config.window_y, config.mode)
-#main(800,600)
+main(config.mode)
 #===================
 # Shuting Down
 #===================
-
+#Close pygame mixer
+pygame.mixer.quit()
 #Print average Frames per second on shutdown
 print "FPS ", count / (time.time() - starttime)
 #Try to kill the thread if it exists. Closes it down on exit				
+aircraft_data.AP.quit() #only here to close debugging files if present.
 if config.mode != config.TEST: #If simconnected connected, kill the thread.
 	aircraft_data.kill_SimConnect()
+	
 	

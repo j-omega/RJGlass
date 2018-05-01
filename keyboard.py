@@ -35,9 +35,20 @@ SHIFT = 3
 class keylist(object):
 	
 	
-	def __init__(self):
+	def __init__(self, aircraft):
 		self.keydown = False #Used for status of sticky keys
-		
+		self.setup_lists(aircraft) #Load in all keybindings
+	def check_events(self,events, globaltime):
+		#keys.check(pygame.event.get())
+		for event in events:
+			#print event
+			if event.type == KEYDOWN:
+				self.pressed(event.key, event.mod, globaltime)
+			elif event.type == KEYUP:
+				self.keyup_event()
+				
+		self.check_stuckkey(globaltime)
+
 	def keyup_event(self):
 		self.keydown = False
 		
@@ -114,6 +125,7 @@ class keylist(object):
 		add_key(K_2, aircraft.HSI.cycle_Bearing2)
 		add_key(K_n, navdata.NDB.cycle_on)
 		add_key(K_v, navdata.VORH.cycle_on)
+		add_key(K_v, navdata.VORL.cycle_on, SHIFT)
 		add_key(K_a, navdata.APT.cycle_on)
 		add_key(K_f, navdata.FIX.cycle_on)
 		add_key(K_TAB, aircraft.NAV.cycle_Active_NAV)
@@ -124,7 +136,10 @@ class keylist(object):
 		add_key(K_z, aircraft.airspeed.inc_Vspeed_input, None, True)
 		add_key(K_z, aircraft.airspeed.dec_Vspeed_input, SHIFT, True)
 		add_key(K_z, aircraft.airspeed.visible_Vspeed_input, CTRL)
-		
+		#VT specific manipulation
+		add_key(K_y, aircraft.airspeed.visible_VT, CTRL)
+		add_key(K_y, aircraft.airspeed.inc_VT, None, True)
+		add_key(K_y, aircraft.airspeed.dec_VT, SHIFT, True)
 		#Decision Height
 		add_key(K_d, aircraft.altimeter.DH.cycle_visible, CTRL)
 		add_key(K_d, aircraft.altimeter.DH.bug_increase, None, True)
@@ -133,6 +148,29 @@ class keylist(object):
 		add_key(K_m, aircraft.altimeter.MDA.cycle_visible, CTRL)
 		add_key(K_m, aircraft.altimeter.MDA.bug_increase, None, True)
 		add_key(K_m, aircraft.altimeter.MDA.bug_decrease, SHIFT, True)
+		#Heading Bug
+		add_key(K_h, aircraft.HSI.inc_Heading_Bug, None, True)
+		add_key(K_h, aircraft.HSI.dec_Heading_Bug, SHIFT, True)
+		#Kollsman
+		add_key(K_b, aircraft.altimeter.reset_setting, None, False)
+		add_key(K_b, aircraft.altimeter.change_unit, ALT, False)
+		add_key(K_b, aircraft.altimeter.inc_setting, SHIFT, True)
+		add_key(K_b, aircraft.altimeter.dec_setting, CTRL, True)
+		
+		#AP
+		add_key(K_F1, aircraft.AP.AP_cycle, None)
+		add_key(K_F2, aircraft.AP.FD_cycle, None)
+		add_key(K_F3, aircraft.AP.HDG_button, None)
+		add_key(K_F12, aircraft.AP.PTCH_inc, None, True)
+		add_key(K_F12, aircraft.AP.PTCH_dec, SHIFT, True)
+		add_key(K_F11, aircraft.AP.VS_button, None)
+		#add_key(K_F11, aircraft.AP.VS_inc, ALT, True)
+		#add_key(K_F11, aircraft.AP.VS_dec, CTRL, True)
+		add_key(K_F10, aircraft.AP.ALT_button, None)
+		add_key(K_F10, aircraft.AP.ALT_inc, SHIFT, True)
+		add_key(K_F10, aircraft.AP.ALT_dec, CTRL, True)
+		#Testing Keys for debugging devloping
+		add_key(K_t, aircraft.testing_key, None)
 		
 		#print "KEY LIST /n"
 		#print key_list
@@ -140,4 +178,3 @@ class keylist(object):
 		#print key_list_ctrl
 		#print "SHIFT LIST"
 		#print key_list_shift
-	

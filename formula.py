@@ -36,7 +36,12 @@ def dist_latlong((lat1, lon1), (lat2, lon2)):
 	#Determins the distance between two points
 	#Straight from http://williams.best.vwh.net/avform.htm
 	#d=acos(sin(lat1)*sin(lat2)+cos(lat1)*cos(lat2)*cos(lon1-lon2))
-	d = acos(sin(lat1)*sin(lat2)+cos(lat1)*cos(lat2)*cos(lon2-lon1))
+	e = (sin(lat1)*sin(lat2)+cos(lat1)*cos(lat2)*cos(lon2-lon1))
+	#d = acos(sin(lat1)*sin(lat2)+cos(lat1)*cos(lat2)*cos(lon2-lon1))
+	if e>1.0: e = 1.0 #Make sure between -1 and 1 before acos function run.
+	elif e<-1.0: e= -1.0
+	d = acos(e)
+	#d = acos(sin(lat1)*sin(lat2)+cos(lat1)*cos(lat2)*cos(lon2-lon1))
 
 	return d
 
@@ -45,9 +50,10 @@ def dist_latlong_nm((lat1,lon1),(lat2,lon2)):
 	#Determins the distance between two points
 	#Straight from http://williams.best.vwh.net/avform.htm
 	#d=acos(sin(lat1)*sin(lat2)+cos(lat1)*cos(lat2)*cos(lon1-lon2))
-	
-	d = acos(sin(lat1)*sin(lat2)+cos(lat1)*cos(lat2)*cos(lon2-lon1))
-	distance_nm=((180*60)/3.141592654)*d 
+	#print "LAT LONG test"
+	#print lat1, lat2, lon2-lon1
+	#d = acos(e)
+	distance_nm=((180*60)/3.141592654)*dist_latlong((lat1,lon1),(lat2,lon2))
 	return distance_nm
 
 def course_latlong((lat1, lon1), (lat2, lon2),d): #Everything is in Radians.
@@ -56,10 +62,12 @@ def course_latlong((lat1, lon1), (lat2, lon2),d): #Everything is in Radians.
 	if d==0:
 		course=0
 	else:
+		temp = (sin(lat2)-sin(lat1)*cos(d))/(sin(d)*cos(lat1))
+		if temp <0.0: temp = 0.0
 		if sin(lon1-lon2)<0:
-			course = acos((sin(lat2)-sin(lat1)*cos(d))/(sin(d)*cos(lat1)))    
+			course = acos(temp)    
 		else:
-			course = 2*pi-acos((sin(lat2)-sin(lat1)*cos(d))/(sin(d)*cos(lat1)))
+			course = 2*pi-acos(temp)
 	
 	return degrees(course)
 

@@ -32,6 +32,7 @@ from guage import * #All add on guage functions colors etc.
 import navdata
 import formula
 import config
+#import aircraft
 
 #class scissor(
 class ND_Guage(object):
@@ -213,7 +214,7 @@ class ND_Guage(object):
 					#glEnable(GL_LINE_STIPPLE)
 					glBegin(GL_LINES)
 					#Determine number of dashes
-					if within_arc: num_dashes = (num/2) +1 #Only do enough to arc
+					if within_arc: num_dashes = (num/2) #Only do enough to arc
 					else:
 						num_dashes = (num/2) + 7 #Do plenty past arc so line goes to end of guage
 					for i in range(num_dashes):
@@ -382,10 +383,9 @@ class ND_Guage(object):
 				self.APT_cord = List_Circle(12, 12)
 				self.INT_cord = List_Circle(10,3) #Since only 3 segments looks like triangle
 				self.NDB_cord = List_Circle(6, 8)
-			
-
+		
 				
-			def drawfixes(self, navfix, plane_latlong, true_head, disp_radius, ND_range):
+			def drawfixes(self, navfix, plane_latlong, true_head, disp_radius, ND_range, total_dis_traveled):
 				if navfix.on: #If it aint' on then don't draw anything.
 					type = navfix.type
 					#Determine which drawing function is  correct for type of navaid
@@ -401,13 +401,16 @@ class ND_Guage(object):
 					glColor(cyan)
 					draw_range = int(ND_range * 1.1)
 					scalefactor = disp_radius / 1.0 / ND_range
-					for i in navfix.visible: #Go through each of the visible indexes and draw them
-						fix = navfix.array[i]
+					for fix in navfix.visible: #Go through each of the visible indexes and draw them
+						#fix = navfix.array[i]
+						
 						dist, bearing = formula.dist_bearing(plane_latlong, fix.latlong)
-						if dist <= draw_range:
+						if dist >=(navfix.max_range + 2): 
+							navfix.remove_from_visible(fix, total_dis_traveled, plane_latlong[0], plane_latlong[1])
+						elif (dist <= draw_range) & (not fix.inFlightplan): #If fix in flight plan do not draw, as it will be drawn twice.
 							dist = dist * scalefactor
 							n_bearing = (bearing + (360.0-true_head))
-							#Dont worry about heading yet
+							
 							x,y = formula.polar_to_xy(dist,n_bearing)
 							glPushMatrix()
 							glTranslatef(x,y,0)
@@ -425,12 +428,13 @@ class ND_Guage(object):
 				glPushMatrix()
 				glTranslate(x,y,0.0)
 				#Start with fixes
-				self.drawfixes(navdata.VORH, LatLong, aircraft.HSI.True_Heading, radius, aircraft.ND.range.value)
-				#self.drawfixes(navdata.VORL, LatLong, aircraft.HSI.True_Heading, radius, aircraft.ND.range.value)
-				self.drawfixes(navdata.NDB, LatLong, aircraft.HSI.True_Heading, radius, aircraft.ND.range.value)
-				self.drawfixes(navdata.FIX, LatLong, aircraft.HSI.True_Heading, radius, aircraft.ND.range.value)
-				self.drawfixes(navdata.APT, LatLong, aircraft.HSI.True_Heading, radius, aircraft.ND.range.value)
-				self.drawflightplan(navdata.flightplan, LatLong, aircraft.HSI.True_Heading, radius, aircraft.ND.range.value)
+				total_dis = aircraft.ND.dis_traveled.total
+				self.drawfixes(navdata.VORH, LatLong, aircraft.HSI.True_Heading, radius, aircraft.ND.range.value, total_dis)
+				self.drawfixes(navdata.VORL, LatLong, aircraft.HSI.True_Heading, radius, aircraft.ND.range.value, total_dis)
+				self.drawfixes(navdata.NDB, LatLong, aircraft.HSI.True_Heading, radius, aircraft.ND.range.value, total_dis)
+				self.drawfixes(navdata.FIX, LatLong, aircraft.HSI.True_Heading, radius, aircraft.ND.range.value, total_dis)
+				self.drawfixes(navdata.APT, LatLong, aircraft.HSI.True_Heading, radius, aircraft.ND.range.value, total_dis)
+				#self.drawflightplan(navdata.flightplan, LatLong, aircraft.HSI.True_Heading, radius, aircraft.ND.range.value)
 				self.Black_Background(self.black_bg_cord_L,self.black_bg_cord_R)
 				glColor(white)
 				self.Plane_Figure()
@@ -449,33 +453,63 @@ class ND_Guage(object):
 				glPopMatrix()
 			
 
-	def init_load(self, navaid, range, plane):
+	def init_load(self, navaid, plane):
 		count =0
+		navaid.visible = []
+		range = navaid.max_range
 		for i in navaid.array:
 			dist_away = formula.dist_latlong_nm(plane, i.latlong)
-			i.dist_away = dist_away
+			i.total_travel_away = dist_away
 			if dist_away <= range:
-				navaid.visible.append(count)
+				#navaid.visible.append(count)
+				navaid.add_to_visible(i)
+				i.total_travel_away = -2 #Negative so it won't be checked.
+			#if count<=5:
+			#	print navaid.visible
 			#	print i.ID, formula.dist_bearing(plane, i.latlong), plane, i.latlong
 			count+=1
-
-	def __init__(self, aircraft):
+		navaid.find_closest()
+		
+	def check_close_navaids(self, dis_traveled, lat, long):
+		
+		navdata.VORH.check_closest(dis_traveled, lat, long)
+		navdata.VORL.check_closest(dis_traveled, lat, long)
+		navdata.NDB.check_closest(dis_traveled, lat, long)
+		navdata.FIX.check_closest(dis_traveled, lat, long)
+		navdata.APT.check_closest(dis_traveled, lat, long)
+		
+	def reset_navaids(self, lat, long):
+		plane = (lat, long)
+		
+		self.init_load(navdata.VORH, plane)
+		self.init_load(navdata.VORL, plane)
+		self.init_load(navdata.NDB, plane)
+		self.init_load(navdata.FIX, plane)
+		self.init_load(navdata.APT, plane)
+		
+		
+	def __init__(self):
 		self.Moving_Map = self.Moving_Map_Guage()
 		#Calculate Distance fron all Points
-		plane = (aircraft.Latitude.value, aircraft.Longitude.value)
-		self.init_load(navdata.VORH, config.max_VOR_range, plane)
-		self.init_load(navdata.VORL, config.max_VOR_range, plane)
-		self.init_load(navdata.NDB, config.max_NDB_range, plane)
-		self.init_load(navdata.FIX, config.max_FIX_range, plane)
-		self.init_load(navdata.APT, config.max_APT_range, plane)
+		
+		
+		
 #		for num in navdata.VOR.visible:
 #			navobj  = navdata.VOR.array[num]
 #			print navobj.ID, navobj.dist_away, navobj.Freq
 		
+	def initialize(self, aircraft):
+		self.reset_navaids(aircraft.Latitude.value, aircraft.Longitude.value)
 			
 	def draw(self,aircraft,x,y): #x,y is the xy cordinates of center of ND guage
 		#rint aircraft.autopilot.ias_bug
 		self.Moving_Map.draw(x, y-175, aircraft) #Just send the whole aircraft object, as lot of data drawn on HSI
-		
+		#Check for large movement of plane
+
+		if aircraft.ND.dis_traveled.increment >= 10: #If plane move more than 10 miles in one second
+			self.reset_navaids(aircraft.Latitude.value, aircraft.Longitude.value)
+			aircraft.ND.dis_traveled.reset()
+			
+		self.check_close_navaids(aircraft.ND.dis_traveled.total, aircraft.Latitude.value, aircraft.Longitude.value)
 		
 		

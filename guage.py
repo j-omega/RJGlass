@@ -26,13 +26,20 @@
 from OpenGL.GL import *
 from OpenGL.GLUT import *
 from OpenGL.GLU import *
-
+from pygame import image
 import math
 #CONSTANTS
 c_VOR = 0
 c_ADF = 1
 
 
+
+class globaltime_c(object): #Used to provide a global timer for timing features
+	def __init__(self):
+		self.value = 0.0
+		
+	def update(self, v): #Updated from RJGlass.py in main loop
+		self.value = v
 
 class scissor_c(object):
 	def __init__(self, x, y, w, h):
@@ -46,7 +53,14 @@ class scissor_c(object):
 		self.y = self.y_o * y_scale
 		self.w_o = self.w_o * x_scale
 		self.h_o = self.h_o * y_scale
-	
+
+class bitmap_image(object):
+	def __init__(self, s): #s = surface
+		
+		self.w, self.h = s.get_size()
+		#print self.w, self.h
+		self.tostring = image.tostring(s, "RGBA", True)
+
 def draw_FPS(x,y,frame_time):
 	if frame_time >0:
 		value = 1. / frame_time
@@ -63,7 +77,7 @@ def draw_FPS(x,y,frame_time):
 	
 def draw_Text(x,y, s):
 	glPushMatrix()
-	glColor(white)
+	#glColor(white)
 	glTranslatef(x,y,0)
 	glScalef(0.1,0.1,1)
 	glText(s)
@@ -247,6 +261,9 @@ def Check_360(d): #Used to make sure data is within 0-360
 	elif d>=360:
 		d-=360
 	return d
+
+#MAin
+globaltime = globaltime_c()
 
 
 

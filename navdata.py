@@ -22,6 +22,7 @@ import sys, os
 #import config
 import time
 import math
+import formula
 
 #This is code to import config file (config.py)
 try:
@@ -117,11 +118,13 @@ class data_file_c(object):
 		
 
 class fix_c(object):
-	def __init__(self, type):
+	def __init__(self, type, range):
 		self.array = []
 		self.visible = [] # Array of list indexes of objects that are within range and need to be drawn on Moving map
 		self.type = type
 		self.on = True #If true will be displayed on moving map
+		self.max_range = range
+		
 	def add(self, list):
 		self.array.append(list)
 	def cycle_on(self):
@@ -130,7 +133,44 @@ class fix_c(object):
 			self.on=False
 		else:
 			self.on=True
-	
+	def find_closest(self):
+		#This find the closest non visible fix.
+		d = 500000.0
+		for fix in self.array:
+			if 0< fix.total_travel_away < d:
+				temp = fix
+				d= fix.total_travel_away
+				
+		self.closest =  temp
+		#print "Closest", temp.ID
+		
+	def add_to_visible(self, fix):
+		
+		self.visible.append(fix)
+		fix.total_travel_away = -2 #Make negative so it isn't checked
+		#print "Added",  fix.ID
+		
+	def remove_from_visible(self,fix, total_dis_traveled, planelat, planelon):
+		self.visible.remove(fix)
+		fix.total_travel_away = formula.dist_latlong_nm((fix.latlong),(planelat,planelon)) + total_dis_traveled
+		#print "Removed", fix.ID
+		
+	def check_closest(self, total_dis_traveled, planelat, planelon):
+		#See if closest navaid is within limits
+		fix = self.closest
+		#print "Prelim ", fix.ID, fix.total_travel_away, total_dis_traveled
+		if fix.total_travel_away <= total_dis_traveled + self.max_range: #Recheck
+			d = formula.dist_latlong_nm((fix.latlong),(planelat,planelon))
+			#print "Checking", fix.ID, d
+			if d <= self.max_range:
+				self.add_to_visible(fix)
+				self.find_closest()
+			#Else navaid not in range, reclaclulate distance find new closest to check
+			else:
+				fix.total_travel_away = total_dis_traveled + d
+				self.find_closest() #Look for possible newest closest
+			
+					
 class flightplan_obj(object):
 	#This the class of a flightplan object
 	def __init__(self):
@@ -139,6 +179,7 @@ class flightplan_obj(object):
 	def add(self, fix):
 		self.points.append(fix)
 		self.num = len(self.points)
+		fix.inFlightplan = True
 		
 class navaid_obj(object):
 	def __init__(self, type, ID, lat, long, freq, type2 = "None"):
@@ -146,7 +187,8 @@ class navaid_obj(object):
 		self.ID = ID
 		self.latlong = (math.radians(lat), math.radians(long))
 		self.type = type
-		self.dist_away =0.0
+		self.total_travel_away =0.0
+		self.inFlightplan = False
 		#VOR TYPE
 		if (type == VORH_type) | (type== VORL_type):
 			self.Freq = "%5.2F" %freq  #Convert freq into string
@@ -232,12 +274,18 @@ def load_apt_file(APT):
 	#Set indexes for this file
 	apt_file = data_file_c( 'apt.dat')
 	apt_file.open()
+	#f = file("test.dat","w")
 	while apt_file.file_end ==False:
 		line_list = apt_file.read()
-		
+	
 		if line_list[0] == "1":
 			ID = line_list[4] #stays as String Airport Name
-			#print ID
+			name = ""
+			for a in line_list[5:]:
+				name+=a
+				name+=" "
+			name = name[:-1]
+			
 			#Scan through all airport code
 			rwy_length = 0
 			count =0
@@ -265,23 +313,25 @@ def load_apt_file(APT):
 		#If Valid then add to appropriate array for memory storage
 		#Check to make sure FIX is 5 characters no number
 				APT.add(navaid_obj(APT_type, ID, lat, long, 0.0))
-		
+				#f.write("%s,%s,%f,%f\n" %(ID,name,lat,long))
 	apt_file.close()
-
+	#f.close()
 #=====================================
 #Begin Module Code
-FIX = fix_c(FIX_type) #Array of Intersections (5 characters)
-VORH = fix_c(VORH_type)#Array of VORH's High altitude VOR's
-VORL = fix_c(VORL_type)
-NDB = fix_c(NDB_type)#Array of NDB's
-APT = fix_c(APT_type) #Array of Airports
+FIX = fix_c(FIX_type, config.max_FIX_range) #Array of Intersections (5 characters)
+VORH = fix_c(VORH_type, config.max_VOR_range)#Array of VORH's High altitude VOR's
+VORL = fix_c(VORL_type, config.max_VOR_range)
+NDB = fix_c(NDB_type, config.max_NDB_range)#Array of NDB's
+APT = fix_c(APT_type, config.max_APT_range) #Array of Airports
 APT.on = False
 FIX.on = False
+NDB.on = False
 flightplan = flightplan_obj()
 #nav_list = nav_file(data_dir, 'nav.dat')
 load_nav_file(VORH, VORL, NDB)
 load_fix_file(FIX)
 load_apt_file(APT)
+
 #start = time.time()
 #for i in range(1000):
 #	d = search("LAX", nav_list)
@@ -305,15 +355,15 @@ if __name__ == "__main__":
 #	t =  search("LAX",VOR.array)
 	
 #	print len(VORH.array)
-	s="ds"
-	while s <> '':
-		s = raw_input("Enter Fix / Apt ID :")
-		#Search s
-		text_search(s, NDB.array, 'NDB')
-		text_search(s, APT.array, 'Airports')
-		text_search(s, FIX.array, 'Intersections / Fixes')
-		text_search(s, VORH.array, 'VOR High Altitude')
-		text_search(s, VORL.array, 'VOR Low Altitude')
+#	s="ds"
+#	while s <> '':
+#		s = raw_input("Enter Fix / Apt ID :")
+#		#Search s
+#		text_search(s, NDB.array, 'NDB')
+#		text_search(s, APT.array, 'Airports')
+#		text_search(s, FIX.array, 'Intersections / Fixes')
+#		text_search(s, VORH.array, 'VOR High Altitude')
+#		text_search(s, VORL.array, 'VOR Low Altitude')
 #	t =  search("AZ", NDB.array)
 #	for i in t:
 #		print i.ID
@@ -321,7 +371,7 @@ if __name__ == "__main__":
 #	t = search("KADG", APT.array)
 #	for i in t:
 #		print i
-#	print APT.array[1479].ID
+print APT.array[1479].ID
 #	print len(APT.array)
 	#for i in APT.array:
 	#	print i.ID
